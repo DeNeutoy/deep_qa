@@ -10,6 +10,8 @@ from keras import activations, initializations, regularizers
 from keras.engine import InputSpec
 from keras.layers import Layer, Recurrent, LSTM, Convolution1D, MaxPooling1D, merge, Dense
 from keras.regularizers import l1l2
+import theano.tensor.extra_ops as T
+import tensorflow as tf
 import numpy as np
 
 from ..data.constants import SHIFT_OP, REDUCE2_OP, REDUCE3_OP
@@ -479,6 +481,81 @@ class BOWEncoder(Layer):
         # supports masking. We don't want that. After the input is averaged, we can stop propagating
         # the mask.
         return None
+
+
+def my_keras_cumsum(x, axis=0):
+    """
+    Keras doesn't have a cumsum operation yet, but it seems to be nearly there - see this PR:
+     https://github.com/fchollet/keras/pull/3791
+     """
+    if K.backend() == "tensorflow":
+        return tf.cumsum(x, axis=axis)
+    else:
+        return T.cumsum(x, axis=axis)
+
+
+class PositionalEncoder(Layer):
+    '''
+    A Positional Encoder takes a matrix of shape (num_words, word_dim) and returns a vector of size (word_dim),
+    which implements the following linear combination of the rows:
+
+     representation = sum_(j=1)^(n) { l_j * w_j }
+
+     where w_j is the j-th word representation in the sentence and l_j is a vector defined as follows:
+
+     l_kj =  (1 - j)/m  -  (k/d)((1-2j)/m)
+
+     where:
+      - j is the word sentence index
+      - m is the sentence length
+      - k is the vector index
+      - d is the dimension of the embedding.
+
+    This could have been done using a Lambda
+    layer, except that Lambda layer does not support masking (as of Keras 1.0.7).
+    '''
+    def __init__(self, **kwargs):
+        self.supports_masking = True
+        self.input_spec = [InputSpec(ndim=3)]
+        super(PositionalEncoder, self).__init__(**kwargs)
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], input_shape[2])  # removing second dimension
+
+    def call(self, x, mask=None):
+        # pylint: disable=redefined-variable-type
+        if mask is None:
+
+            one_over_m = K.ones_like(x) * 1/K.shape(x)[0]
+            word_positional_index = my_keras_cumsum(K.ones_like(x), 0)
+            dimension_positional_index = my_keras_cumsum(K.ones_like(x), 1) * 1/K.shape(1)
+            one_minus_j = K.ones_like(x) - word_positional_index
+            one_minus_two_j = K.ones_like(x) - 2 * word_positional_index
+
+            l_weighting_vectors = (one_minus_j * one_over_m) - (dimension_positional_index * (one_minus_two_j * one_over_m))
+
+            return l_weighting_vectors * x
+
+        else:
+            float_mask = K.cast(mask, 'float32')
+            # TODO: can't just divide by the shape here. need to use the masking on ones to get the right thing.
+            one_over_m = K.ones_like(x) * 1/K.shape(x)[0]
+            word_positional_index = my_keras_cumsum(K.ones_like(x) * float_mask, 0)
+            dimension_positional_index = my_keras_cumsum(K.ones_like(x) * float_mask, 1) * 1/K.shape(1)
+            one_minus_j = K.ones_like(x) - word_positional_index
+            one_minus_two_j = K.ones_like(x) - 2 * word_positional_index
+
+            l_weighting_vectors = (one_minus_j * one_over_m) - (dimension_positional_index * (one_minus_two_j * one_over_m))
+
+            return l_weighting_vectors * x
+
+    def compute_mask(self, input, input_mask=None):  # pylint: disable=redefined-builtin
+        # We need to override this method because Layer passes the input mask unchanged since this layer
+        # supports masking. We don't want that. After the input is averaged, we can stop propagating
+        # the mask.
+        return None
+
+
 
 
 class CNNEncoder(Layer):
