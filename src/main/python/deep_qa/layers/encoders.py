@@ -22,7 +22,7 @@ class TreeCompositionLSTM(Recurrent):
     1. Tree LSTM does not differentiate between x and h, because
         tree composition is not applied at every time step (it is applied when the input symbol is a
         reduce) and when it is applied, there is no "current input".
-    2. Input sequenpipces are not the
+    2. Input sequences are not the
         ones being composed, they are operations on the buffer containing elements corresponding to
         tokens. There isn't one token per timestep like LSTMs.
     3. Single vectors h and c are replaced
