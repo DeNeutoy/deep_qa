@@ -483,15 +483,6 @@ class BOWEncoder(Layer):
         return None
 
 
-def my_keras_cumsum(x, axis=0):
-    """
-    Keras doesn't have a cumsum operation yet, but it seems to be nearly there - see this PR:
-     https://github.com/fchollet/keras/pull/3791
-     """
-    if K.backend() == "tensorflow":
-        return tf.cumsum(x, axis=axis)
-    else:
-        return T.cumsum(x, axis=axis)
 
 
 class PositionalEncoder(Layer):
@@ -508,7 +499,7 @@ class PositionalEncoder(Layer):
      where:
       - j is the word sentence index
       - m is the sentence length
-      - k is the vector index
+      - k is the vector index(ie the k-th element of a vector)
       - d is the dimension of the embedding.
 
     This could have been done using a Lambda
@@ -524,38 +515,47 @@ class PositionalEncoder(Layer):
 
     def call(self, x, mask=None):
         # pylint: disable=redefined-variable-type
+        def my_keras_cumsum(x, axis=0):
+            """
+            Keras doesn't have a cumsum operation yet, but it seems to be nearly there - see this PR:
+             https://github.com/fchollet/keras/pull/3791.
+             """
+            if K.backend() == "tensorflow":
+                return tf.cumsum(x, axis=axis)
+            else:
+                return T.cumsum(x, axis=axis)
+
+        # This section implements the positional encoder on all the vectors at once.
+        # The general idea is to use ones matrices in the shape of x to create indexes per word.
+
         if mask is None:
-
-            one_over_m = K.ones_like(x) * 1/K.shape(x)[0]
-            word_positional_index = my_keras_cumsum(K.ones_like(x), 0)
-            dimension_positional_index = my_keras_cumsum(K.ones_like(x), 1) * 1/K.shape(1)
-            one_minus_j = K.ones_like(x) - word_positional_index
-            one_minus_two_j = K.ones_like(x) - 2 * word_positional_index
-
-            l_weighting_vectors = (one_minus_j * one_over_m) - (dimension_positional_index * (one_minus_two_j * one_over_m))
-
-            return l_weighting_vectors * x
-
+            ones_like_x = K.ones_like(x)
         else:
             float_mask = K.cast(mask, 'float32')
-            # TODO: can't just divide by the shape here. need to use the masking on ones to get the right thing.
-            one_over_m = K.ones_like(x) * 1/K.shape(x)[0]
-            word_positional_index = my_keras_cumsum(K.ones_like(x) * float_mask, 0)
-            dimension_positional_index = my_keras_cumsum(K.ones_like(x) * float_mask, 1) * 1/K.shape(1)
-            one_minus_j = K.ones_like(x) - word_positional_index
-            one_minus_two_j = K.ones_like(x) - 2 * word_positional_index
+            ones_like_x = K.ones_like(x) * K.expand_dims(float_mask, 2)
 
-            l_weighting_vectors = (one_minus_j * one_over_m) - (dimension_positional_index * (one_minus_two_j * one_over_m))
+        # This is an odd way to get the number of words(ie the first dimension of x).
+        # However, if the input is masked, using the dimension directly does not
+        # equate to the correct number of words. We fix this by adding up a relevant
+        # row of ones which has been masked if required.
+        masked_m = K.expand_dims(K.sum(ones_like_x, 1), 1)
 
-            return l_weighting_vectors * x
+        one_over_m = ones_like_x / masked_m
+        j_index = my_keras_cumsum(ones_like_x, 1)
+        d_over_D = my_keras_cumsum(ones_like_x, 2) * 1.0/K.cast(K.shape(x)[2], 'float32')
+        one_minus_j = ones_like_x - j_index
+        one_minus_two_j = ones_like_x - 2 * j_index
+
+        l_weighting_vectors = (one_minus_j * one_over_m) - \
+                              (d_over_D * (one_minus_two_j * one_over_m))
+
+        return l_weighting_vectors * x
 
     def compute_mask(self, input, input_mask=None):  # pylint: disable=redefined-builtin
         # We need to override this method because Layer passes the input mask unchanged since this layer
-        # supports masking. We don't want that. After the input is averaged, we can stop propagating
+        # supports masking. We don't want that. After the input is merged we can stop propagating
         # the mask.
         return None
-
-
 
 
 class CNNEncoder(Layer):
@@ -701,3 +701,4 @@ encoders["bow"] = BOWEncoder
 encoders["lstm"] = LSTM
 encoders["tree_lstm"] = TreeCompositionLSTM
 encoders["cnn"] = CNNEncoder
+encoders["positional"] = PositionalEncoder
