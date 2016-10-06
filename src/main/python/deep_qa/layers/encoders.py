@@ -515,15 +515,15 @@ class PositionalEncoder(Layer):
 
     def call(self, x, mask=None):
         # pylint: disable=redefined-variable-type
-        def my_keras_cumsum(x, axis=0):
+        def my_keras_cumsum(tensor, axis=0):
             """
             Keras doesn't have a cumsum operation yet, but it seems to be nearly there - see this PR:
              https://github.com/fchollet/keras/pull/3791.
              """
             if K.backend() == "tensorflow":
-                return tf.cumsum(x, axis=axis)
+                return tf.cumsum(tensor, axis=axis)
             else:
-                return T.cumsum(x, axis=axis)
+                return T.cumsum(tensor, axis=axis)
 
         # This section implements the positional encoder on all the vectors at once.
         # The general idea is to use ones matrices in the shape of x to create indexes per word.
@@ -542,12 +542,12 @@ class PositionalEncoder(Layer):
 
         one_over_m = ones_like_x / masked_m
         j_index = my_keras_cumsum(ones_like_x, 1)
-        d_over_D = my_keras_cumsum(ones_like_x, 2) * 1.0/K.cast(K.shape(x)[2], 'float32')
+        d_over_total_word_size = my_keras_cumsum(ones_like_x, 2) * 1.0/K.cast(K.shape(x)[2], 'float32')
         one_minus_j = ones_like_x - j_index
         one_minus_two_j = ones_like_x - 2 * j_index
 
         l_weighting_vectors = (one_minus_j * one_over_m) - \
-                              (d_over_D * (one_minus_two_j * one_over_m))
+                              (d_over_total_word_size * (one_minus_two_j * one_over_m))
 
         return l_weighting_vectors * x
 
