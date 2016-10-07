@@ -7,11 +7,13 @@ hard (values will be all 0, except one).
 '''
 
 from collections import OrderedDict
+from overrides import overrides
 
 from keras.engine import InputSpec
 from keras import backend as K
 from keras import activations, initializations
 from keras.layers import Layer
+from keras.layers.recurrent import GRU
 
 def tile_sentence_encoding(sentence_encoding, knowledge_encoding):
     # Tensorflow can't use unknown sizes at runtime, so we have to make use of the broadcasting
@@ -187,6 +189,87 @@ class ParameterizedKnowledgeSelector(Layer):
         # For each sample, the output is a vector of size knowledge_length, indicating the weights
         # over background information.
         return (input_shape[0], input_shape[1] - 1)  # (num_samples, knowledge_length)
+
+
+class AttentionBasedGRUKnowledgeSelector(Layer):
+    '''
+    Input Shape: num_samples, (knowledge_length + 1), input_dim.
+
+    This Knowledge Selector runs an Attentive GRU over the knowledge
+
+    '''
+    def __init__(self, encoding_dim, name="sum_memory_updater", **kwargs):
+        super(AttentionBasedGRUKnowledgeSelector, self).__init__(name=name, **kwargs)
+        self.encoding_dim = encoding_dim
+        self.mode = 'sum'
+        self.attentive_GRU =
+
+    def call(self, x, mask=None):
+        memory_vector = x[:, :self.encoding_dim]
+        aggregated_knowledge_vector = x[:, self.encoding_dim:]
+        return memory_vector + aggregated_knowledge_vector
+
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], int(input_shape[1] / 2))
+
+    def get_config(self):
+        base_config = super(AttentionBasedGRUKnowledgeSelector, self).get_config()
+        config = {'encoding_dim': self.encoding_dim}
+        config.update(base_config)
+        return config
+
+
+class AttentiveGRU(GRU):
+
+    def __init__(self, attention_output, encoding_dim, name="attentive_gru", **kwargs):
+        super(AttentiveGRU, self).__init__(encoding_dim, name=name, **kwargs)
+        self.attention_output = attention_output
+
+    @overides
+    def step(self, x, states):
+        h_tm1 = states[0]  # previous memory
+        B_U = states[1]  # dropout matrices for recurrent units
+        B_W = states[2]
+
+        if self.consume_less == 'gpu':
+
+            matrix_x = K.dot(x * B_W[0], self.W) + self.b
+            matrix_inner = K.dot(h_tm1 * B_U[0], self.U[:, :2 * self.output_dim])
+
+            x_z = matrix_x[:, :self.output_dim]
+            x_r = matrix_x[:, self.output_dim: 2 * self.output_dim]
+            inner_z = matrix_inner[:, :self.output_dim]
+            inner_r = matrix_inner[:, self.output_dim: 2 * self.output_dim]
+
+            z = self.inner_activation(x_z + inner_z)
+            r = self.inner_activation(x_r + inner_r)
+
+            x_h = matrix_x[:, 2 * self.output_dim:]
+            inner_h = K.dot(r * h_tm1 * B_U[0], self.U[:, 2 * self.output_dim:])
+            hh = self.activation(x_h + inner_h)
+        else:
+            if self.consume_less == 'cpu':
+                x_z = x[:, :self.output_dim]
+                x_r = x[:, self.output_dim: 2 * self.output_dim]
+                x_h = x[:, 2 * self.output_dim:]
+            elif self.consume_less == 'mem':
+                x_z = K.dot(x * B_W[0], self.W_z) + self.b_z
+                x_r = K.dot(x * B_W[1], self.W_r) + self.b_r
+                x_h = K.dot(x * B_W[2], self.W_h) + self.b_h
+            else:
+                raise Exception('Unknown `consume_less` mode.')
+            z = self.inner_activation(x_z + K.dot(h_tm1 * B_U[0], self.U_z))
+            r = self.inner_activation(x_r + K.dot(h_tm1 * B_U[1], self.U_r))
+
+            hh = self.activation(x_h + K.dot(r * h_tm1 * B_U[2], self.U_h))
+
+        # TODO Check: Is this right in Keras???
+        h = z * hh + (1 - z) * h_tm1
+        return h, [h]
+
+
+
+
 
 
 # The first item added here will be used as the default in some cases.
