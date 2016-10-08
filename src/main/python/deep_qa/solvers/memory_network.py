@@ -224,6 +224,7 @@ class MemoryNetworkSolver(NNSolver):
         # TODO: this should only be called once. How to check this?
         params = deepcopy(self.knowledge_combiner_params)
         params["knowledge_axis"] = self._get_knowledge_axis()
+        params["output_dim"] = self.embedding_size
         combiner_type = get_choice_with_default(params, "type", list(knowledge_combiners.keys()))
 
         return knowledge_combiners[combiner_type](**params)

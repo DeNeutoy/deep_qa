@@ -28,3 +28,13 @@ class TestMultipleChoiceMemoryNetworkSolver(TestCase):
         args = {'knowledge_selector': {'type': 'parameterized'}}
         solver = get_solver(MultipleChoiceMemoryNetworkSolver, args)
         solver.train()
+
+    def test_train_does_not_crash_with_weighted_average_knowledge_combiner(self):
+        args = {'knowledge_combiner' : {'type': 'weighted_average'}}
+        solver = get_solver(MultipleChoiceMemoryNetworkSolver, args)
+        solver.train()
+
+    def test_train_does_not_crash_with_attentive_gru_knowledge_combiner(self):
+        args = {'knowledge_combiner' : {'type': 'attentive_gru'}}
+        solver = get_solver(MultipleChoiceMemoryNetworkSolver, args)
+        solver.train()

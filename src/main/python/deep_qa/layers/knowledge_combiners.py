@@ -25,8 +25,9 @@ from keras.layers import merge
 
 class WeightedAverageKnowledgeCombiner:
 
-    def __init__(self, knowledge_axis):
+    def __init__(self, knowledge_axis, name='weighted_average_knowledge_combiner', **kwargs):
         self.knowledge_axis = knowledge_axis
+        self.name = name
 
     def __call__(self, encoded_knowledge, attention_weights, index):
 
@@ -63,9 +64,9 @@ class AttentionBasedGRUKnowledgeCombiner:
     running over every piece of knowledge.
 
     '''
-    def __init__(self, knowledge_axis, attention_GRU):
+    def __init__(self, knowledge_axis, attentive_GRU, output_dim):
         self.knowledge_axis = knowledge_axis
-        self.attention_GRU = attention_GRU
+        self.attention_GRU = attentive_GRU(output_dim)
 
     def __call__(self, encoded_knowledge, attention_weights, index, mask=None):
 
@@ -83,6 +84,7 @@ class AttentionBasedGRUKnowledgeCombiner:
         gru_input = merge([K.expand_dims(attention_weights, dim=self.knowledge_axis + 1), encoded_knowledge],
                           mode='concat',
                           concat_axis= self.knowledge_axis + 1,
+                          output_shape=None , # TODO add the merged shape here, so the Attentive GRU can build.
                           name='concat_attention_with_background_%d' % index)
 
         last_state = self.attention_GRU(gru_input)
@@ -168,6 +170,7 @@ class AttentiveGRU(GRU):
         h = attention * hh + (1 - attention) * h_tm1
         return h, [h]
 
+    @overrides
     def build(self, input_shape):
         '''
         This is used by Keras to verify things, but also to build the weights.
@@ -275,5 +278,5 @@ class AttentiveGRU(GRU):
 # The first item added here will be used as the default in some cases.
 knowledge_combiners = OrderedDict()  # pylint:  disable=invalid-name
 knowledge_combiners["weighted_average"] = WeightedAverageKnowledgeCombiner
-knowledge_combiners["attentive_GRU"] = AttentionBasedGRUKnowledgeCombiner
+knowledge_combiners["attentive_gru"] = AttentionBasedGRUKnowledgeCombiner
 
