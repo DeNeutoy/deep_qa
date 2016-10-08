@@ -12,6 +12,7 @@ from ..data.text_instance import TrueFalseInstance
 from ..layers.knowledge_selectors import selectors
 from ..layers.memory_updaters import updaters
 from ..layers.entailment_models import entailment_models, entailment_input_combiners
+from ..layers.knowledge_combiners import knowledge_combiners
 from .nn_solver import NNSolver
 from .pretraining.snli_pretrainer import SnliAttentionPretrainer, SnliEntailmentPretrainer
 
@@ -78,6 +79,7 @@ class MemoryNetworkSolver(NNSolver):
         # one of the keys in `selectors`) to determine the type of the selector, then pass the
         # remaining args to the selector constructor.
         self.knowledge_selector_params = params.pop('knowledge_selector', {})
+        self.knowledge_combiner_params = params.pop('knowledge_combiner', {})
 
         # Same deal with these three as with the knowledge selector params.
         self.memory_updater_params = params.pop('memory_updater', {})
@@ -196,19 +198,6 @@ class MemoryNetworkSolver(NNSolver):
             return tuple(background_shape)
         return merged_shape
 
-    def _get_weighted_average_shape(self):
-        """
-        Similar to _get_merged_background_shape, this method returns the shape of a function that
-        averages over the knowledge axis.  All we have to do is drop the knowledge axis from the
-        shape.
-        """
-        knowledge_axis = self._get_knowledge_axis()
-        def merged_shape(input_shapes):
-            shape = [x for x in input_shapes[0]]
-            shape.pop(knowledge_axis)
-            return tuple(shape)
-        return merged_shape
-
     def _get_knowledge_selector(self, layer_num: int):
         """
         Instantiates a KnowledgeSelector layer.  This is an overridable method because some
@@ -227,6 +216,17 @@ class MemoryNetworkSolver(NNSolver):
         selector_type = get_choice_with_default(params, "type", list(selectors.keys()))
         params['name'] = name
         return selectors[selector_type](**params)
+
+    def _get_knowledge_combiner(self, name='knowledge_combiner'):
+        # The code that follows would be destructive to self.knowledge_combiner_params (lots of
+        # calls to params.pop()), but it's possible we'll want to call this more than once.  So
+        # we'll make a copy and use that instead of self.knowledge_combiner_params.
+        # TODO: this should only be called once. How to check this?
+        params = deepcopy(self.knowledge_combiner_params)
+        params["knowledge_axis"] = self._get_knowledge_axis()
+        combiner_type = get_choice_with_default(params, "type", list(knowledge_combiners.keys()))
+
+        return knowledge_combiners[combiner_type](**params)
 
     def _get_memory_updater(self, layer_num: int):
         """
@@ -321,6 +321,7 @@ class MemoryNetworkSolver(NNSolver):
         # current memory layer.
         current_memory = encoded_question
 
+        knowledge_combiner = self._get_knowledge_combiner()
         knowledge_axis = self._get_knowledge_axis()
         for i in range(self.num_memory_layers):
             # We want to merge a matrix and a tensor such that the new tensor will have one
@@ -345,15 +346,9 @@ class MemoryNetworkSolver(NNSolver):
             attention_weights = knowledge_selector(regularized_merged_rep)
             # Defining weighted average as a custom merge mode. Takes two inputs: data and weights
             # ndim of weights is one less than data.
-            weighted_average = lambda avg_inputs: K.sum(avg_inputs[0] * K.expand_dims(avg_inputs[1], dim=-1),
-                                                        axis=knowledge_axis)
-            # input shapes: (samples, knowledge_len, input_dim), (samples, knowledge_len)
-            # output shape: (samples, input_dim)
-            weighted_average_shape = self._get_weighted_average_shape()
-            attended_knowledge = merge([encoded_knowledge, attention_weights],
-                                       mode=weighted_average,
-                                       output_shape=weighted_average_shape,
-                                       name='background_weighted_average_%d' % i)
+
+            # We now combine the knowledge and the weights using the knowledge combiner.
+            attended_knowledge = knowledge_combiner(encoded_knowledge, attention_weights, i)
 
             # To make this easier to TimeDistribute, we're going to concatenate the current memory
             # with the attended knowledge, and use that as the input to the memory updater, instead
