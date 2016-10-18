@@ -92,16 +92,33 @@ class DotProductKnowledgeSelector(Layer):
     def call(self, x, mask=None):
         _, memory_encoding, knowledge_encoding = split_selector_inputs(x)
 
-        # We want to take a dot product of the knowledge matrix and the sentence vector from each
-        # sample. Instead of looping over all samples (inefficient), let's tile the sentence
-        # encoding to make it the same size as knowledge encoding, take an element wise product and
-        # sum over the last dimension (dim = 2).
+        if mask is not None:
 
-        # (num_samples, knowledge_length, input_dim)
-        tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+            _, memory_mask, knowledge_mask = split_selector_inputs(mask)
 
-        # (num_samples, knowledge_length)
-        unnormalized_attention = K.sum(knowledge_encoding * tiled_memory_encoding, axis=2)
+            # We want to take a dot product of the knowledge matrix and the sentence vector from each
+            # sample. Instead of looping over all samples (inefficient), let's tile the sentence
+            # encoding to make it the same size as knowledge encoding, take an element wise product and
+            # sum over the last dimension (dim = 2).
+
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding * memory_mask, knowledge_encoding)
+
+            # (num_samples, knowledge_length)
+            unnormalized_attention = K.sum(knowledge_encoding * knowledge_mask * tiled_memory_encoding, axis=2)
+
+        else:
+            # We want to take a dot product of the knowledge matrix and the sentence vector from each
+            # sample. Instead of looping over all samples (inefficient), let's tile the sentence
+            # encoding to make it the same size as knowledge encoding, take an element wise product and
+            # sum over the last dimension (dim = 2).
+
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+
+            # (num_samples, knowledge_length)
+            unnormalized_attention = K.sum(knowledge_encoding * tiled_memory_encoding, axis=2)
+
         if self.hard_selection:
             knowledge_length = K.shape(knowledge_encoding)[1]
             knowledge_attention = hardmax(unnormalized_attention, knowledge_length)
