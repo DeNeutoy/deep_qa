@@ -59,6 +59,7 @@ def split_selector_inputs(inputs):
 
 
 def hardmax(unnormalized_attention, knowledge_length):
+
     # (num_samples, knowledge_length)
     tiled_max_values = K.tile(K.expand_dims(K.max(unnormalized_attention, axis=1)), (1, knowledge_length))
     # We now have a matrix where every column in each row has the max knowledge score value from
@@ -131,6 +132,12 @@ class DotProductKnowledgeSelector(Layer):
         # over background information.
         return (input_shape[0], input_shape[1] - 2)  # (num_samples, knowledge_length)
 
+    def compute_mask(self, input, input_mask=None):
+        # At this point, the attention already implicitly contains our mask. The other inputs to the Knowledge Combiners
+        # will still have access to their respective masks, so we don't need to pass on the dimensions which were masked
+        # here as well, as they are already zeroed out.
+        return None
+
 
 class ParameterizedKnowledgeSelector(Layer):
     """
@@ -202,18 +209,31 @@ class ParameterizedKnowledgeSelector(Layer):
         '''
         _, memory_encoding, knowledge_encoding = split_selector_inputs(x)
 
-        # We're going to have to do several operations on the memory representation for each
-        # background sentence.  Instead of looping over the background sentences, which is
-        # inefficient, we'll tile the sentence encoding and use it in what follows.
+        if mask is not None:
+            _, memory_mask, knowledge_mask = split_selector_inputs(mask)
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding * memory_mask, knowledge_encoding)
 
-        # (num_samples, knowledge_length, input_dim)
-        tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+            # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 2)
+            concatenated_encodings = K.concatenate([knowledge_encoding * knowledge_mask,
+                                                    tiled_memory_encoding])
 
-        # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 2)
-        concatenated_encodings = K.concatenate([knowledge_encoding, tiled_memory_encoding])
+            # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
+            concatenated_activation = self.activation(K.dot(concatenated_encodings,
+                                                            self.dense_weights)) * knowledge_mask
+        else:
+            # We're going to have to do several operations on the memory representation for each
+            # background sentence.  Instead of looping over the background sentences, which is
+            # inefficient, we'll tile the sentence encoding and use it in what follows.
 
-        # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
-        concatenated_activation = self.activation(K.dot(concatenated_encodings, self.dense_weights))
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+
+            # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 2)
+            concatenated_encodings = K.concatenate([knowledge_encoding, tiled_memory_encoding])
+
+            # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
+            concatenated_activation = self.activation(K.dot(concatenated_encodings, self.dense_weights))
 
         # (3: q_t) Result of this is (num_samples, knowledge_length).  We need to remove a dimension
         # after the dot product with K.squeeze, otherwise this would be (num_samples,
@@ -303,19 +323,39 @@ class ParameterizedHeuristicMatchingKnowledgeSelector(Layer):
         # for each background sentence.  Instead of looping over the background sentences, which
         # is inefficient, we'll tile the question and memory encodings and use them in what follows.
 
-        # (num_samples, knowledge_length, input_dim)
-        tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
-        tiled_question_encoding = tile_vector(original_question_encoding, knowledge_encoding)
+        if mask is not None:
+            question_mask, memory_mask, knowledge_mask = split_selector_inputs(mask)
+            original_question_encoding *= question_mask
+            memory_encoding *= memory_mask
+            knowledge_encoding *= knowledge_mask
 
-        # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 4)
-        concatenated_encodings = K.concatenate([knowledge_encoding * tiled_question_encoding,
-                                                knowledge_encoding * tiled_memory_encoding,
-                                                K.abs(knowledge_encoding - tiled_question_encoding),
-                                                K.abs(knowledge_encoding - tiled_memory_encoding)])
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+            tiled_question_encoding = tile_vector(original_question_encoding, knowledge_encoding)
 
-        # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
-        concatenated_activation = self.activation(K.dot(concatenated_encodings,
-                                                        self.dense_weights) + self.bias1)
+            # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 4)
+            concatenated_encodings = K.concatenate([knowledge_encoding * tiled_question_encoding,
+                                                    knowledge_encoding * tiled_memory_encoding,
+                                                    K.abs(knowledge_encoding - tiled_question_encoding),
+                                                    K.abs(knowledge_encoding - tiled_memory_encoding)])
+
+            # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
+            concatenated_activation = self.activation(K.dot(concatenated_encodings,
+                                                            self.dense_weights) + self.bias1) * knowledge_mask
+        else:
+            # (num_samples, knowledge_length, input_dim)
+            tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding)
+            tiled_question_encoding = tile_vector(original_question_encoding, knowledge_encoding)
+
+            # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 4)
+            concatenated_encodings = K.concatenate([knowledge_encoding * tiled_question_encoding,
+                                                    knowledge_encoding * tiled_memory_encoding,
+                                                    K.abs(knowledge_encoding - tiled_question_encoding),
+                                                    K.abs(knowledge_encoding - tiled_memory_encoding)])
+
+            # (2: m_t) Result of this is (num_samples, knowledge_length, input_dim)
+            concatenated_activation = self.activation(K.dot(concatenated_encodings,
+                                                            self.dense_weights) + self.bias1)
 
         # (3: q_t) Result of this is (num_samples, knowledge_length).  We need to remove a dimension
         # after the dot product with K.squeeze, otherwise this would be (num_samples,
