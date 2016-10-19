@@ -376,6 +376,7 @@ class MemoryNetworkSolver(TextTrainer):
             merged_encoded_rep = merge([encoded_question, current_memory, encoded_knowledge],
                                        mode=merge_mode,
                                        output_shape=merged_shape,
+                                       output_mask=merge_mode,
                                        name='concat_memory_and_question_with_background_%d' % i)
 
             # Regularize it
