@@ -335,6 +335,7 @@ class ParameterizedHeuristicMatchingKnowledgeSelector(Layer):
             # (num_samples, knowledge_length, input_dim)
             tiled_memory_encoding = tile_vector(memory_encoding, knowledge_encoding) * knowledge_mask
             tiled_question_encoding = tile_vector(original_question_encoding, knowledge_encoding) * knowledge_mask
+            knowledge_encoding *= knowledge_mask
 
             # (1: zu_t) Result of this is (num_samples, knowledge_length, input_dim * 4)
             concatenated_encodings = K.concatenate([knowledge_encoding * tiled_question_encoding,
