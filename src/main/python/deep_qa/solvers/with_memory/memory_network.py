@@ -335,6 +335,17 @@ class MemoryNetworkSolver(TextTrainer):
             entailment_params['answer_dim'] = self.embedding_size
         return entailment_models[model_type](entailment_params)
 
+    def _get_memory_network_recurrence(self):
+
+        def memory_network_recurrence(encoded_question, current_memory, encoded_background):
+
+            for i in range(self.num_memory_layers):
+                current_memory, attended_knowledge = \
+                    self.memory_step(encoded_question, current_memory, encoded_background)
+                self.iteration += 1
+            return current_memory, attended_knowledge
+        return memory_network_recurrence
+
     @overrides
     def _build_model(self):
         # Steps 1 and 2: Convert inputs to sequences of word vectors, for both the question
@@ -360,93 +371,17 @@ class MemoryNetworkSolver(TextTrainer):
         # At each step in the following loop, we take the question encoding, or the output of
         # the previous memory layer, merge it with the knowledge encoding and pass it to the
         # current memory layer.
+        self.iteration = 0
         current_memory = encoded_question
 
-        knowledge_combiner = self._get_knowledge_combiner(0)
-        knowledge_axis = self._get_knowledge_axis()
-        for i in range(self.num_memory_layers):
-            # We want to merge a matrix and a tensor such that the new tensor will have one
-            # additional row (at the beginning) in all slices.
-            # (samples, word_dim) + (samples, knowledge_len, word_dim)
-            #       -> (samples, 2 + knowledge_len, word_dim)
-            # Since this is an unconventional merge, we define a customized lambda merge.
-            # Keras cannot infer the shape of the output of a lambda function, so we make
-            # that explicit.
-            merge_mode = lambda layer_outs: K.concatenate([K.expand_dims(layer_outs[0], dim=knowledge_axis),
-                                                           K.expand_dims(layer_outs[1], dim=knowledge_axis),
-                                                           layer_outs[2]],
-                                                          axis=knowledge_axis)
-
-            # This merge mask is generating a mask of shape (samples, knowledge_length) for input to the
-            # knowledge selector. This happens even though the encoded_question and current_memory have no mask,
-            # which is why we only deal with last input variables.
-            def merge_mask(mask_outs):
-                if self.has_multiple_backgrounds:
-                    return K.concatenate([K.expand_dims(K.zeros_like(mask_outs[2][:, :, 0]), dim=knowledge_axis),
-                                          K.expand_dims(K.zeros_like(mask_outs[2][:, :, 0]), dim=knowledge_axis),
-                                          mask_outs[2]],
-                                         axis=knowledge_axis)
-                else:
-                    return K.concatenate([K.expand_dims(K.zeros_like(mask_outs[2][:, 0]), dim=knowledge_axis),
-                                          K.expand_dims(K.zeros_like(mask_outs[2][:, 0]), dim=knowledge_axis),
-                                          mask_outs[2]],
-                                         axis=knowledge_axis)
-
-            merged_shape = self._get_merged_background_shape()
-            merged_encoded_rep = merge([encoded_question, current_memory, encoded_knowledge],
-                                       mode=merge_mode,
-                                       output_shape=merged_shape,
-                                       output_mask=merge_mask,
-                                       name='concat_memory_and_question_with_background_%d' % i)
-
-            # Regularize it
-            regularized_merged_rep = Dropout(0.2)(merged_encoded_rep)
-            knowledge_selector = self._get_knowledge_selector(i)
-            attention_weights = knowledge_selector(regularized_merged_rep)
-            # Defining weighted average as a custom merge mode. Takes two inputs: data and weights
-            # ndim of weights is one less than data.
-
-            # We now combine the knowledge and the weights using the knowledge combiner. In order to
-            # make it easy to TimeDistribute these Layers for use with different solvers,
-            # we prepend the attention mask onto the background knowledge.
-            # Note that this merge assumes that the word_dim is always after the background_length dimension.
-            # (samples, knowledge_length, word_dim), (samples, knowledge_length)
-            #                                    => (samples, knowledge_length, 1 + word_dim)
-
-            concat_mode = lambda layer_outs: K.concatenate([K.expand_dims(layer_outs[0], dim=knowledge_axis + 1),
-                                                            layer_outs[1]],
-                                                           axis=knowledge_axis + 1)
-            concat_shape = self._get_concat_background_shape()
-
-            combined_background_with_attention = merge([attention_weights, encoded_knowledge],
-                                                       mode=concat_mode,
-                                                       output_shape=concat_shape,
-                                                       name='concat_attention_with_background_%d' % i)
-
-            attended_knowledge = knowledge_combiner(combined_background_with_attention)
-
-            # To make this easier to TimeDistribute, we're going to concatenate the current memory
-            # with the attended knowledge, and use that as the input to the memory updater, instead
-            # of just passing a list.
-            # We going from two inputs of (batch_size, encoding_dim) to one input of (batch_size,
-            # encoding_dim * 2).
-            updater_input = merge([encoded_question, current_memory, attended_knowledge],
-                                  mode='concat',
-                                  concat_axis=knowledge_axis,
-                                  name='concat_current_memory_with_background_%d' % i)
-            memory_updater = self._get_memory_updater(i)
-            current_memory = memory_updater(updater_input)
-
-        # TODO(matt): we now have subclasses that do answer selection, instead of entailment, and
-        # it's not very nice to shoehorn them into the same "entailment" model.  It would be nice
-        # to generalize this into some "final output" section, but I'm not sure how to do that
-        # cleanly.
+        memory_steps = self._get_memory_network_recurrence()
+        current_memory, attended_knowledge = memory_steps(encoded_question, current_memory, encoded_knowledge)
 
         # Step 5: Finally, run the sentence encoding, the current memory, and the attended
         # background knowledge through an entailment model to get a final true/false score.
         entailment_input = merge([encoded_question, current_memory, attended_knowledge],
                                  mode='concat',
-                                 concat_axis=knowledge_axis,
+                                 concat_axis=self._get_knowledge_axis(),
                                  name='concat_entailment_inputs')
         combined_input = self._get_entailment_input_combiner()(entailment_input)
         extra_entailment_inputs, entailment_output = self._get_entailment_output(combined_input)
@@ -456,6 +391,87 @@ class MemoryNetworkSolver(TextTrainer):
         input_layers = [question_input_layer, knowledge_input_layer]
         input_layers.extend(extra_entailment_inputs)
         return DeepQaModel(input=input_layers, output=entailment_output)
+
+    def memory_step(self, encoded_question, current_memory, encoded_knowledge):
+
+        knowledge_combiner = self._get_knowledge_combiner(0)
+        knowledge_axis = self._get_knowledge_axis()
+
+        # We want to merge a matrix and a tensor such that the new tensor will have one
+        # additional row (at the beginning) in all slices.
+        # (samples, word_dim) + (samples, knowledge_len, word_dim)
+        #       -> (samples, 2 + knowledge_len, word_dim)
+        # Since this is an unconventional merge, we define a customized lambda merge.
+        # Keras cannot infer the shape of the output of a lambda function, so we make
+        # that explicit.
+        merge_mode = lambda layer_outs: K.concatenate([K.expand_dims(layer_outs[0], dim=knowledge_axis),
+                                                       K.expand_dims(layer_outs[1], dim=knowledge_axis),
+                                                       layer_outs[2]],
+                                                      axis=knowledge_axis)
+
+        # This merge mask is generating a mask of shape (samples, knowledge_length) for input to the
+        # knowledge selector. This happens even though the encoded_question and current_memory have no mask,
+        # which is why we only deal with last input variables.
+        def merge_mask(mask_outs):
+
+            if self.has_multiple_backgrounds:
+                return K.concatenate([K.expand_dims(K.zeros_like(mask_outs[2][:, :, 0]),
+                                                    dim=knowledge_axis),
+                                      K.expand_dims(K.zeros_like(mask_outs[2][:, :, 0]),
+                                                    dim=knowledge_axis),
+                                      mask_outs[2]], axis=knowledge_axis)
+            else:
+                return K.concatenate([K.expand_dims(K.zeros_like(mask_outs[2][:, 0]),
+                                                    dim=knowledge_axis),
+                                      K.expand_dims(K.zeros_like(mask_outs[2][:, 0]),
+                                                    dim=knowledge_axis),
+                                      mask_outs[2]], axis=knowledge_axis)
+
+        merged_shape = self._get_merged_background_shape()
+        merged_encoded_rep = merge([encoded_question, current_memory, encoded_knowledge],
+                                   mode=merge_mode,
+                                   output_shape=merged_shape,
+                                   output_mask=merge_mask,
+                                   name='concat_memory_and_question_with_background_%d' % self.iteration)
+
+        # Regularize it
+        regularized_merged_rep = Dropout(0.2)(merged_encoded_rep)
+        knowledge_selector = self._get_knowledge_selector(self.iteration)
+        attention_weights = knowledge_selector(regularized_merged_rep)
+        # Defining weighted average as a custom merge mode. Takes two inputs: data and weights
+        # ndim of weights is one less than data.
+
+        # We now combine the knowledge and the weights using the knowledge combiner. In order to
+        # make it easy to TimeDistribute these Layers for use with different solvers,
+        # we prepend the attention mask onto the background knowledge.
+        # Note that this merge assumes that the word_dim is always after the background_length dimension.
+        # (samples, knowledge_length, word_dim), (samples, knowledge_length)
+        #                                    => (samples, knowledge_length, 1 + word_dim)
+
+        concat_mode = lambda layer_outs: K.concatenate([K.expand_dims(layer_outs[0], dim=knowledge_axis + 1),
+                                                        layer_outs[1]],
+                                                       axis=knowledge_axis + 1)
+        concat_shape = self._get_concat_background_shape()
+
+        combined_background_with_attention = merge([attention_weights, encoded_knowledge],
+                                                   mode=concat_mode,
+                                                   output_shape=concat_shape,
+                                                   name='concat_attention_with_background_%d' % self.iteration)
+
+        attended_knowledge = knowledge_combiner(combined_background_with_attention)
+
+        # To make this easier to TimeDistribute, we're going to concatenate the current memory
+        # with the attended knowledge, and use that as the input to the memory updater, instead
+        # of just passing a list.
+        # We going from two inputs of (batch_size, encoding_dim) to one input of (batch_size,
+        # encoding_dim * 2).
+        updater_input = merge([encoded_question, current_memory, attended_knowledge],
+                              mode='concat',
+                              concat_axis=knowledge_axis,
+                              name='concat_current_memory_with_background_%d' % self.iteration)
+        memory_updater = self._get_memory_updater(self.iteration)
+        current_memory = memory_updater(updater_input)
+        return current_memory, attended_knowledge
 
     @overrides
     def _instance_debug_output(self, instance: BackgroundInstance, outputs: Dict[str, numpy.array]) -> str:
