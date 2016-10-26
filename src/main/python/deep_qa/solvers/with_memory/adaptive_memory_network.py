@@ -34,10 +34,10 @@ class AdapativeStepLayer(Layer):
 
         encoded_question, current_memory, encoded_knowledge = x
 
-        batch_mask = tf.squeeze(tf.cast(tf.ones_like(current_memory[:, 0], name= 'batch_mask'), tf.bool))
-        hop_counter = tf.squeeze(tf.zeros_like(current_memory[:, 0], name='hop_counter'))
-        halting_accumulator = tf.squeeze(tf.zeros_like(current_memory[:, 0], name='halting_accumulator'))
-        halting_accumulator_for_comparison = tf.squeeze(tf.zeros_like(current_memory[:, 0], name='halting_acc_for_comparision'))
+        batch_mask = tf.cast(tf.ones_like(current_memory[:, 0], name= 'batch_mask'), tf.bool)
+        hop_counter = tf.zeros_like(current_memory[:, 0], name='hop_counter')
+        halting_accumulator = tf.zeros_like(current_memory[:, 0], name='halting_accumulator')
+        halting_accumulator_for_comparison = tf.zeros_like(current_memory[:, 0], name='halting_acc_for_comparision')
         memory_accumulator = tf.zeros_like(current_memory, name='memory_accumulator')
         attended_knowledge_loop_placeholder = tf.zeros_like(current_memory, name='attended_knowledge_placeholder')
 
@@ -72,10 +72,6 @@ class AdapativeStepLayer(Layer):
                               attended_knowledge_loop_placeholder
                           ])
 
-        current_memory = Reshape((5,))(current_memory)
-        attended_knowledge = Reshape((5,))(attended_knowledge)
-        print(current_memory, attended_knowledge)
-
         return [current_memory, attended_knowledge]
 
     def compute_mask(self, input, input_mask=None):
@@ -95,25 +91,21 @@ class AdapativeStepLayer(Layer):
                             attended_knowledge):
 
         current_memory, attended_knowledge = self.memory_step(encoded_question, previous_memory, encoded_knowledge)
-
         with tf.variable_scope("halting_calculation"):
-            halting_probability = tf.squeeze(tf.sigmoid(K.dot(current_memory, self.halting_weight)))
+            halting_probability = tf.squeeze(tf.sigmoid(K.dot(current_memory, self.halting_weight)),1)
 
-        print("halting prob:", K.shape(halting_probability))
+
         new_batch_mask = tf.logical_and(
-            tf.less(halting_accumulator + halting_probability,
-                    self.one_minus_epsilon), batch_mask)
+            tf.less(halting_accumulator + halting_probability, self.one_minus_epsilon),
+            batch_mask)
+
         new_float_mask = tf.cast(new_batch_mask, tf.float32)
         halting_accumulator += halting_probability * new_float_mask
-        halting_accumulator_for_comparison += halting_probability * tf.expand_dims(tf.cast(batch_mask, tf.float32), 1)
+        halting_accumulator_for_comparison += halting_probability * tf.cast(batch_mask, tf.float32)
 
         def use_probability():
-            masked_halting_probability = tf.tile(tf.expand_dims(halting_probability * new_float_mask, 1), [1, 5])
-            print("expanded mask", K.shape(masked_halting_probability))
-            print("memory accumulator", K.shape(memory_accumulator))
-            print(current_memory)
+            masked_halting_probability = tf.expand_dims(halting_probability * new_float_mask, 1)
             accumulated_memory_update = (current_memory * masked_halting_probability) + memory_accumulator
-            print("accumulated memory update", K.shape(accumulated_memory_update))
             return accumulated_memory_update
 
         def use_remainder():
@@ -125,7 +117,7 @@ class AdapativeStepLayer(Layer):
         counter_condition = tf.less(hop_counter, self.max_computation)
         condition = tf.reduce_any(tf.logical_and(new_batch_mask, counter_condition))
 
-        #memory_accumulator = tf.cond(condition, use_probability, use_remainder)
+        memory_accumulator = tf.cond(condition, use_probability, use_remainder)
 
         return_elts = [new_batch_mask,
                 halting_accumulator,
@@ -141,6 +133,7 @@ class AdapativeStepLayer(Layer):
             print(elt)
 
         return return_elts
+
 
 class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
 
