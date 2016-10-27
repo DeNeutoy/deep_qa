@@ -6,6 +6,7 @@ import tensorflow as tf
 from keras import backend as K
 from keras.layers import Layer
 from keras import initializations
+from keras.regularizers import l1
 from keras.engine import InputSpec
 from .memory_network import MemoryNetworkSolver
 
@@ -19,6 +20,7 @@ class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
 
         self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
         self.max_computation = K.variable(params.pop("max_computation", 10))
+        self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
         super(AdaptiveMemoryNetworkSolver, self).__init__(params)
 
     @overrides
@@ -26,7 +28,8 @@ class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
 
         # Instead of running for a fixed number of steps
         def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
-            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation, self.memory_step)
+            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
+                                          self.memory_step, self.ponder_cost_param)
             return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
 
         return adaptive_recurrence
@@ -45,10 +48,11 @@ class AdaptiveStep(Layer):
     probabilities, states and outputs from a timestep t's contribution if they have already reached
     1-es at a timestep s < t.
     '''
-    def __init__(self, one_minus_epsilon, max_computation, memory_step,
+    def __init__(self, one_minus_epsilon, max_computation, memory_step, ponder_cost_param,
                  initialization='glorot_uniform', name='adaptive_layer', **kwargs):
         self.one_minus_epsilon = one_minus_epsilon
         self.max_computation = max_computation
+        self.ponder_cost_param = ponder_cost_param
         self.memory_step = memory_step
         self.init = initializations.get(initialization)
         self.name = name
@@ -84,6 +88,10 @@ class AdaptiveStep(Layer):
         # We need the attended_knowledge from the last memory network step, so we create a dummy variable to
         # input to the while_loop, as tensorflow requires the input signature to match the output signature.
         attended_knowledge_loop_placeholder = tf.zeros_like(current_memory, name='attended_knowledge_placeholder')
+
+        ponder_cost = l1(self.ponder_cost_param)
+        ponder_cost.set_param(hop_counter)
+        self.regularizers.append(ponder_cost)
 
         # Tensorflow requires that we use all of the variables used in the tf.while_loop as inputs to the
         # condition for halting the loop, even though we only actually make use of two of them.
