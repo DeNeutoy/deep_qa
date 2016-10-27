@@ -15,6 +15,7 @@ from ...layers.memory_updaters import updaters
 from ...layers.entailment_models import entailment_models, entailment_input_combiners
 from ...layers.knowledge_combiners import knowledge_combiners
 from ...layers.knowledge_encoders import knowledge_encoders
+from ...layers.recurrence_modes import recurrence_modes
 from ...training.text_trainer import TextTrainer
 from ...training.models import DeepQaModel
 
@@ -84,7 +85,7 @@ class MemoryNetworkSolver(TextTrainer):
         self.memory_updater_params = params.pop('memory_updater', {})
         self.entailment_combiner_params = params.pop('entailment_input_combiner', {})
         self.entailment_model_params = params.pop('entailment_model', {})
-
+        self.recurrence_params = params.pop('recurrence_mode', {})
         # Upper limit on number of background sentences in the training data. Ignored during
         # testing (we use the value set at training time, either from this parameter or from a
         # loaded model).  If this is not set, we'll calculate a max length from the data.
@@ -336,15 +337,11 @@ class MemoryNetworkSolver(TextTrainer):
         return entailment_models[model_type](entailment_params)
 
     def _get_memory_network_recurrence(self):
-
-        def memory_network_recurrence(encoded_question, current_memory, encoded_background):
-
-            for i in range(self.num_memory_layers):
-                current_memory, attended_knowledge = \
-                    self.memory_step(encoded_question, current_memory, encoded_background)
-                self.iteration += 1
-            return current_memory, attended_knowledge
-        return memory_network_recurrence
+        recurrence_params = deepcopy(self.recurrence_params)
+        recurrence_type = get_choice_with_default(recurrence_params, "type", list(recurrence_modes.keys()))
+        recurrence_params["memory_step"] = self.memory_step
+        recurrence_params["num_memory_layers"] = self.num_memory_layers
+        return recurrence_modes[recurrence_type](recurrence_params)
 
     @overrides
     def _build_model(self):
@@ -371,10 +368,10 @@ class MemoryNetworkSolver(TextTrainer):
         # At each step in the following loop, we take the question encoding, or the output of
         # the previous memory layer, merge it with the knowledge encoding and pass it to the
         # current memory layer.
-        self.iteration = 0
         current_memory = encoded_question
 
         memory_steps = self._get_memory_network_recurrence()
+        self.iteration = 0
         current_memory, attended_knowledge = memory_steps(encoded_question, current_memory, encoded_knowledge)
 
         # Step 5: Finally, run the sentence encoding, the current memory, and the attended
@@ -471,6 +468,7 @@ class MemoryNetworkSolver(TextTrainer):
                               name='concat_current_memory_with_background_%d' % self.iteration)
         memory_updater = self._get_memory_updater(self.iteration)
         current_memory = memory_updater(updater_input)
+        self.iteration += 1
         return current_memory, attended_knowledge
 
     @overrides

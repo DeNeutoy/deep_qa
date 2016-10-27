@@ -1,10 +1,11 @@
+
 # pylint: disable=no-self-use,invalid-name
 
 from unittest import TestCase
 import os
 import shutil
 
-from deep_qa.solvers.with_memory.adaptive_memory_network import AdaptiveMemoryNetworkSolver
+from deep_qa.solvers.with_memory.memory_network import MemoryNetworkSolver
 from ...common.constants import TEST_DIR
 from ...common.solvers import get_solver
 from ...common.solvers import write_memory_network_files
@@ -23,5 +24,6 @@ class TestMemoryNetworkSolver(TestCase):
         shutil.rmtree(TEST_DIR)
 
     def test_train_does_not_crash(self):
-        solver = get_solver(AdaptiveMemoryNetworkSolver)
+        args = {'recurrence_mode': {'type': 'adaptive'}}
+        solver = get_solver(MemoryNetworkSolver, args)
         solver.train()

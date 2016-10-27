@@ -1,6 +1,5 @@
 from typing import Any, Dict
-from overrides import overrides
-
+from collections import OrderedDict
 import tensorflow as tf
 
 from keras import backend as K
@@ -9,73 +8,34 @@ from keras import initializations
 from keras.regularizers import l1
 from keras.engine import InputSpec
 
-from .memory_network import MemoryNetworkSolver
-from .multiple_true_false_memory_network import MultipleTrueFalseMemoryNetworkSolver
-from .question_answer_memory_network import QuestionAnswerMemoryNetworkSolver
 
-class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
-    '''
-    This solver uses an Adaptive number of memory steps which is learnt during training.
-    Other than this, it is identical to the standard MemoryNetworkSolver.
-    '''
-    def __init__(self, params: Dict[str, Any]):
-
-        self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
-        self.max_computation = K.variable(params.pop("max_computation", 10))
-        self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
-        super(AdaptiveMemoryNetworkSolver, self).__init__(params)
-
-    @overrides
-    def _get_memory_network_recurrence(self):
-
-        # Instead of running for a fixed number of steps
-        def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
-            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
-                                          self.memory_step, self.ponder_cost_param)
-            return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
-
-        return adaptive_recurrence
-
-
-class AdaptiveMultipleTrueFalseMemoryNetworkSolver(MultipleTrueFalseMemoryNetworkSolver):
+class FixedRecurrence(object):
 
     def __init__(self, params: Dict[str, Any]):
 
-        self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
-        self.max_computation = K.variable(params.pop("max_computation", 10))
-        self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
-        super(AdaptiveMultipleTrueFalseMemoryNetworkSolver, self).__init__(params)
+        self.num_memory_layers = params.pop("num_memory_layers")
+        self.memory_step = params.pop("memory_step")
 
-    @overrides
-    def _get_memory_network_recurrence(self):
-
-        # Instead of running for a fixed number of steps
-        def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
-            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
-                                          self.memory_step, self.ponder_cost_param)
-            return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
-
-        return adaptive_recurrence
+    def __call__(self, encoded_question, current_memory, encoded_background):
+        for i in range(self.num_memory_layers):
+            current_memory, attended_knowledge = \
+                self.memory_step(encoded_question, current_memory, encoded_background)
+        return current_memory, attended_knowledge
 
 
-class AdaptiveQuestionAnswerMemoryNetworkSolver(QuestionAnswerMemoryNetworkSolver):
+class AdaptiveRecurrence(object):
+
     def __init__(self, params: Dict[str, Any]):
-
         self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
         self.max_computation = K.variable(params.pop("max_computation", 10))
         self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
-        super(AdaptiveQuestionAnswerMemoryNetworkSolver, self).__init__(params)
+        self.memory_step = params.pop("memory_step")
 
-    @overrides
-    def _get_memory_network_recurrence(self):
-
-        # Instead of running for a fixed number of steps
-        def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
-            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
-                                          self.memory_step, self.ponder_cost_param)
-            return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
-
-        return adaptive_recurrence
+    def __call__(self, encoded_question, current_memory, encoded_knowledge):
+        adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
+                                      self.memory_step, self.ponder_cost_param)
+        current_memory, attended_knowledge = adaptive_layer([encoded_question, current_memory, encoded_knowledge])
+        return current_memory, attended_knowledge
 
 
 class AdaptiveStep(Layer):
@@ -282,14 +242,6 @@ class AdaptiveStep(Layer):
                 memory_accumulator,
                 attended_knowledge]
 
-
-
-
-
-
-
-
-
-
-
-
+recurrence_modes = OrderedDict()
+recurrence_modes["fixed"] = FixedRecurrence
+recurrence_modes["adaptive"] = AdaptiveRecurrence
