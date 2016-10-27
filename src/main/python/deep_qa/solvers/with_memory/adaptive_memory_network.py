@@ -8,8 +8,10 @@ from keras.layers import Layer
 from keras import initializations
 from keras.regularizers import l1
 from keras.engine import InputSpec
-from .memory_network import MemoryNetworkSolver
 
+from .memory_network import MemoryNetworkSolver
+from .multiple_true_false_memory_network import MultipleTrueFalseMemoryNetworkSolver
+from .question_answer_memory_network import QuestionAnswerMemoryNetworkSolver
 
 class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
     '''
@@ -22,6 +24,47 @@ class AdaptiveMemoryNetworkSolver(MemoryNetworkSolver):
         self.max_computation = K.variable(params.pop("max_computation", 10))
         self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
         super(AdaptiveMemoryNetworkSolver, self).__init__(params)
+
+    @overrides
+    def _get_memory_network_recurrence(self):
+
+        # Instead of running for a fixed number of steps
+        def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
+            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
+                                          self.memory_step, self.ponder_cost_param)
+            return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
+
+        return adaptive_recurrence
+
+
+class AdaptiveMultipleTrueFalseMemoryNetworkSolver(MultipleTrueFalseMemoryNetworkSolver):
+
+    def __init__(self, params: Dict[str, Any]):
+
+        self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
+        self.max_computation = K.variable(params.pop("max_computation", 10))
+        self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
+        super(AdaptiveMultipleTrueFalseMemoryNetworkSolver, self).__init__(params)
+
+    @overrides
+    def _get_memory_network_recurrence(self):
+
+        # Instead of running for a fixed number of steps
+        def adaptive_recurrence(encoded_question, current_memory, encoded_knowledge):
+            adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
+                                          self.memory_step, self.ponder_cost_param)
+            return adaptive_layer([encoded_question, current_memory, encoded_knowledge])
+
+        return adaptive_recurrence
+
+
+class AdaptiveQuestionAnswerMemoryNetworkSolver(QuestionAnswerMemoryNetworkSolver):
+    def __init__(self, params: Dict[str, Any]):
+
+        self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
+        self.max_computation = K.variable(params.pop("max_computation", 10))
+        self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
+        super(AdaptiveQuestionAnswerMemoryNetworkSolver, self).__init__(params)
 
     @overrides
     def _get_memory_network_recurrence(self):
