@@ -14,12 +14,12 @@ class FixedRecurrence(object):
     def __init__(self, params: Dict[str, Any]):
 
         self.num_memory_layers = params.pop("num_memory_layers")
-        self.memory_step = params.pop("memory_step")
+        self.memory_network = params.pop("memory_network")
 
     def __call__(self, encoded_question, current_memory, encoded_background):
         for _ in range(self.num_memory_layers):
             current_memory, attended_knowledge = \
-                self.memory_step(encoded_question, current_memory, encoded_background)
+                self.memory_network.memory_step(encoded_question, current_memory, encoded_background)
         return current_memory, attended_knowledge
 
 
@@ -29,12 +29,12 @@ class AdaptiveRecurrence(object):
         self.one_minus_epsilon = K.variable(1.0 - params.pop("epsilon", 0.01))
         self.max_computation = K.variable(params.pop("max_computation", 10))
         self.ponder_cost_param = params.pop("ponder_cost_param", 0.05)
-        self.memory_step = params.pop("memory_step")
+        self.memory_network = params.pop("memory_network")
 
     def __call__(self, encoded_question, current_memory, encoded_knowledge):
 
         adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
-                                      self.memory_step, self.ponder_cost_param)
+                                      self.memory_network, self.ponder_cost_param)
         final_memory, final_attended_knowledge = adaptive_layer([
                 encoded_question, current_memory, encoded_knowledge])
         return final_memory, final_attended_knowledge
@@ -53,12 +53,12 @@ class AdaptiveStep(Layer):
     probabilities, states and outputs from a timestep t's contribution if they have already reached
     1-es at a timestep s < t.
     '''
-    def __init__(self, one_minus_epsilon, max_computation, memory_step, ponder_cost_param,
+    def __init__(self, one_minus_epsilon, max_computation, memory_network, ponder_cost_param,
                  initialization='glorot_uniform', name='adaptive_layer', **kwargs):
         self.one_minus_epsilon = one_minus_epsilon
         self.max_computation = max_computation
         self.ponder_cost_param = ponder_cost_param
-        self.memory_step = memory_step
+        self.memory_network = memory_network
         self.init = initializations.get(initialization)
         self.name = name
         super(AdaptiveStep, self).__init__(**kwargs)
@@ -71,9 +71,18 @@ class AdaptiveStep(Layer):
         '''
         self.input_spec = [InputSpec(shape=input_shape[1])]
         input_dim = input_shape[1][-1]
+
         # pylint: disable=attribute-defined-outside-init
         self.halting_weight = self.init(((input_dim,) + (1,)), name='{}_halting_weight'.format(self.name))
+
+        merged_background_knowledge_shape = list(input_shape[2])
+        merged_background_knowledge_shape[-2] +=2
+        knowledge_selector = self.memory_network._get_knowledge_selector(self.memory_network.iteration)
+        knowledge_selector.build(tuple(merged_background_knowledge_shape))
+        ks_weights = knowledge_selector.trainable_weights
+        print("knowledge_selector weights", ks_weights)
         self.trainable_weights = [self.halting_weight]
+        self.trainable_weights.extend(ks_weights)
 
     def call(self, x, mask=None):
         encoded_question, current_memory, encoded_knowledge = x
@@ -158,7 +167,8 @@ class AdaptiveStep(Layer):
         # vanilla memory network. We have to re-assign this as a method for this class because we can't
         # pass in functions to this method (adaptive_memory_hop) as we use it in the tf.while_loop, which
         # requires tensor-only arguments.
-        current_memory, attended_knowledge = self.memory_step(encoded_question, previous_memory, encoded_knowledge)
+        current_memory, attended_knowledge = self.memory_network.memory_step(
+            encoded_question, previous_memory, encoded_knowledge)
 
         # Here, we are computing the probability that each sample in the batch will halt at this iteration.
         # This outputs a vector of probabilities of shape (samples, ).
@@ -226,7 +236,7 @@ class AdaptiveStep(Layer):
         # 1 - epsilon halting condition, as the final probability also needs to take into account this
         # epsilon value.
         final_iteration_condition = tf.reduce_any(tf.logical_and(new_batch_mask, counter_condition))
-
+        self.memory_network.iteration += 1
         memory_accumulator = tf.cond(final_iteration_condition, use_probability, use_remainder)
 
         # We have to return all of these values as a requirement of the tf.while_loop. Some of them,

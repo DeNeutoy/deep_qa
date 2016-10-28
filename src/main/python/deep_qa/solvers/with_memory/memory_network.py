@@ -340,10 +340,14 @@ class MemoryNetworkSolver(TextTrainer):
         return entailment_models[model_type](entailment_params)
 
     def _get_memory_network_recurrence(self):
+        # This code determines how the memory step is controlled within the memory network. If the
+        # recurrence method is 'fixed' we simply do a fixed number of memory steps. If the method is
+        # adaptive, the number of steps is data dependent and is a parameter of the model.
         recurrence_params = deepcopy(self.recurrence_params)
         recurrence_type = get_choice_with_default(recurrence_params, "type", list(recurrence_modes.keys()))
         recurrence_params["memory_step"] = self.memory_step
         recurrence_params["num_memory_layers"] = self.num_memory_layers
+        recurrence_params["memory_network"] = self
         return recurrence_modes[recurrence_type](recurrence_params)
 
     @overrides
@@ -367,12 +371,11 @@ class MemoryNetworkSolver(TextTrainer):
         knowledge_encoder = self._get_knowledge_encoder()
         encoded_knowledge = knowledge_encoder(knowledge_embedding)  # (samples, knowledge_len, word_dim)
 
-        # Step 4: Merge the two encoded representations and pass into the knowledge backed scorer.
+        # Step 4: Pass the question, memory and background into a memory network loop.
         # At each step in the following loop, we take the question encoding, or the output of
         # the previous memory layer, merge it with the knowledge encoding and pass it to the
         # current memory layer.
         current_memory = encoded_question
-
         memory_steps = self._get_memory_network_recurrence()
         current_memory, attended_knowledge = memory_steps(encoded_question, current_memory, encoded_knowledge)
 
@@ -389,6 +392,17 @@ class MemoryNetworkSolver(TextTrainer):
         # calling method.
         input_layers = [question_input_layer, knowledge_input_layer]
         input_layers.extend(extra_entailment_inputs)
+
+        # TODO : remove this eventually, useful to check Keras is training the same weights as TF.
+        model = DeepQaModel(input=input_layers, output=entailment_output)
+        print("keras weights")
+        for x in model.trainable_weights:
+            print(x.name)
+        print(model.non_trainable_weights)
+        print("tensorflow weights")
+        import tensorflow as tf
+        for x in tf.trainable_variables():
+            print(x.name, x.get_shape())
         return DeepQaModel(input=input_layers, output=entailment_output)
 
     def memory_step(self, encoded_question, current_memory, encoded_knowledge):
