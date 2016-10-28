@@ -341,6 +341,7 @@ class MemoryNetworkSolver(TextTrainer):
         recurrence_type = get_choice_with_default(recurrence_params, "type", list(recurrence_modes.keys()))
         recurrence_params["memory_step"] = self.memory_step
         recurrence_params["num_memory_layers"] = self.num_memory_layers
+        recurrence_params["has_multiple_backgrounds"] = self.has_multiple_backgrounds
         return recurrence_modes[recurrence_type](recurrence_params)
 
     @overrides
