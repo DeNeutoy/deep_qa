@@ -71,7 +71,10 @@ class MemoryNetworkSolver(TextTrainer):
     def __init__(self, params: Dict[str, Any]):
 
         self.num_memory_layers = params.pop('num_memory_layers', 1)
-
+        # This is used to label names for layers within the memory network loop. We have to define it here
+        # as the loop can be non-deterministic, meaning we have to modify it as we go, rather than use
+        # a loop index.
+        self.iteration = 0
         # These parameters specify the kind of knowledge selector, used to compute an attention
         # over a collection of background information.
         # If given, this must be a dict.  We will use the "type" key in this dict (which must match
@@ -371,7 +374,6 @@ class MemoryNetworkSolver(TextTrainer):
         current_memory = encoded_question
 
         memory_steps = self._get_memory_network_recurrence()
-        self.iteration = 0
         current_memory, attended_knowledge = memory_steps(encoded_question, current_memory, encoded_knowledge)
 
         # Step 5: Finally, run the sentence encoding, the current memory, and the attended
