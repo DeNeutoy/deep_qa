@@ -394,15 +394,15 @@ class MemoryNetworkSolver(TextTrainer):
         input_layers.extend(extra_entailment_inputs)
 
         # TODO : remove this eventually, useful to check Keras is training the same weights as TF.
+        print("tensorflow weights")
+        import tensorflow as tf
+        for x in tf.trainable_variables():
+            print(x.name, x.get_shape())
         model = DeepQaModel(input=input_layers, output=entailment_output)
         print("keras weights")
         for x in model.trainable_weights:
             print(x.name)
         print(model.non_trainable_weights)
-        print("tensorflow weights")
-        import tensorflow as tf
-        for x in tf.trainable_variables():
-            print(x.name, x.get_shape())
         return DeepQaModel(input=input_layers, output=entailment_output)
 
     def memory_step(self, encoded_question, current_memory, encoded_knowledge):

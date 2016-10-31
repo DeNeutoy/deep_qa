@@ -3,7 +3,7 @@ from collections import OrderedDict
 import tensorflow as tf
 
 from keras import backend as K
-from keras.layers import Layer
+from keras.layers import Layer, Reshape
 from keras import initializations
 from keras.regularizers import l1
 from keras.engine import InputSpec
@@ -174,6 +174,8 @@ class AdaptiveStep(Layer):
 
         # pylint: disable=attribute-defined-outside-init
         self.halting_weight = self.init(((input_dim,) + (1,)), name='{}_halting_weight'.format(self.name))
+
+        self.trainable_weights = [self.halting_weight]
 
     def call(self, x, mask=None):
 
