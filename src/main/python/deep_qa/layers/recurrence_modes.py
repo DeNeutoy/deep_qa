@@ -33,11 +33,111 @@ class AdaptiveRecurrence(object):
 
     def __call__(self, encoded_question, current_memory, encoded_knowledge):
 
-        adaptive_layer = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
-                                      self.memory_network, self.ponder_cost_param)
-        final_memory, final_attended_knowledge = adaptive_layer([
-                encoded_question, current_memory, encoded_knowledge])
+        # We need to create a tensor which doesn't have the encoding_dim dimension. So that this Layer is
+        # independent of the dimension of the input tensors, we just sum over the last dimension to remove it.
+        # We only use this to create variables, nothing else.
+        reduced_dim_memory = K.sum(current_memory, -1)
+        # This is a boolean mask, holding whether a particular sample has halted.
+        batch_mask = tf.cast(tf.ones_like(reduced_dim_memory, name='batch_mask'), tf.bool)
+        # This counts the number of memory steps per sample.
+        hop_counter = tf.zeros_like(reduced_dim_memory, name='hop_counter')
+        # This accumulates the halting probabilities.
+        halting_accumulator = tf.zeros_like(reduced_dim_memory, name='halting_accumulator')
+        # This also accumulates the halting probabilities, with the difference being that if an
+        # outputed probability causes a particular sample to go over 1 - epsilon, this accumulates
+        # that value, but the halting_accumulator does not. This variable is _only_ used in the
+        # halting condition of the loop.
+        halting_accumulator_for_comparison = tf.zeros_like(reduced_dim_memory, name='halting_acc_for_comparision')
+        # This accumulates the weighted memory vectors at each memory step. The memory is weighted by the
+        # halting probability and added to this accumulator.
+        memory_accumulator = tf.zeros_like(current_memory, name='memory_accumulator')
+        # We need the attended_knowledge from the last memory network step, so we create a dummy variable to
+        # input to the while_loop, as tensorflow requires the input signature to match the output signature.
+        attended_knowledge_loop_placeholder = tf.zeros_like(current_memory, name='attended_knowledge_placeholder')
+
+        self.adaptive_computation = AdaptiveStep(self.one_minus_epsilon, self.max_computation,
+                                                 self.memory_network, self.ponder_cost_param)
+
+        # This actually does the computation of self.adaptive_memory_hop,
+        # checking the condition at every step to see if it should stop.
+        _, _, _, hop_counter, _, _, _, final_memory, final_attended_knowledge = \
+            tf.while_loop(cond=self.halting_condition, body=self.step_function,
+                          loop_vars=[
+                              batch_mask,
+                              halting_accumulator,
+                              halting_accumulator_for_comparison,
+                              hop_counter,
+                              encoded_question,
+                              current_memory,
+                              encoded_knowledge,
+                              memory_accumulator,
+                              attended_knowledge_loop_placeholder
+                          ])
+
         return final_memory, final_attended_knowledge
+
+    # Tensorflow requires that we use all of the variables used in the tf.while_loop as inputs to the
+    # condition for halting the loop, even though we only actually make use of two of them.
+    # pylint: disable=unused-argument
+    def halting_condition(self, batch_mask,
+                          halting_accumulator,
+                          halting_accumulator_for_comparison,
+                          hop_counter,
+                          encoded_question,
+                          current_memory,
+                          encoded_knowledge,
+                          memory_accumulator,
+                          attended_knowledge_placeholder):
+
+            # This condition checks the batch elementwise to see if any of the accumulated halting
+            # probabilities have gone over one_minus_epsilon in the previous iteration.
+            probability_condition = tf.less(halting_accumulator_for_comparison, self.one_minus_epsilon)
+            # This condition checks the batch elementwise to see if any have taken more steps than the max allowed.
+            max_computation_condition = tf.less(hop_counter, self.max_computation)
+            # We only stop if both of the above conditions are true....
+            combined_conditions = tf.logical_and(probability_condition, max_computation_condition)
+            # ... for the entire batch.
+            return tf.reduce_any(combined_conditions)
+
+    def step_function(self, batch_mask,
+                      halting_accumulator,
+                      halting_accumulator_for_comparison,
+                      hop_counter,
+                      encoded_question,
+                      previous_memory,
+                      encoded_knowledge,
+                      memory_accumulator,
+                      attended_knowledge_placeholder):
+
+        # First things first: let's actually do a memory network step. This is exactly the same as in the
+        # vanilla memory network. We have to re-assign this as a method for this class because we can't
+        # pass in functions to this method (adaptive_memory_hop) as we use it in the tf.while_loop, which
+        # requires tensor-only arguments.
+        current_memory, attended_knowledge = self.memory_network.memory_step(
+            encoded_question, previous_memory, encoded_knowledge)
+
+        adaptive_args = [batch_mask,
+                         halting_accumulator,
+                         halting_accumulator_for_comparison,
+                         hop_counter,
+                         encoded_question,
+                         current_memory,
+                         encoded_knowledge,
+                         memory_accumulator]
+
+        for x in adaptive_args:
+            print(x)
+        new_adaptive_args = self.adaptive_computation([batch_mask,
+                                                       halting_accumulator,
+                                                       halting_accumulator_for_comparison,
+                                                       hop_counter,
+                                                       encoded_question,
+                                                       current_memory,
+                                                       encoded_knowledge,
+                                                       memory_accumulator])
+        new_adaptive_args.append(attended_knowledge)
+
+        return new_adaptive_args
 
 
 class AdaptiveStep(Layer):
@@ -69,106 +169,16 @@ class AdaptiveStep(Layer):
         to generate the halting_probability. We define the weight shape with the 2nd input to this
         layer, as this is the memory representation, which will dictate the required size.
         '''
-        self.input_spec = [InputSpec(shape=input_shape[1])]
-        input_dim = input_shape[1][-1]
+        # self.input_spec = [InputSpec(shape=input_shape[6])]
+        input_dim = input_shape[6][-1]
 
         # pylint: disable=attribute-defined-outside-init
         self.halting_weight = self.init(((input_dim,) + (1,)), name='{}_halting_weight'.format(self.name))
 
-        merged_background_knowledge_shape = list(input_shape[2])
-        merged_background_knowledge_shape[-2] +=2
-        knowledge_selector = self.memory_network._get_knowledge_selector(self.memory_network.iteration)
-        knowledge_selector.build(tuple(merged_background_knowledge_shape))
-        ks_weights = knowledge_selector.trainable_weights
-        print("knowledge_selector weights", ks_weights)
-        self.trainable_weights = [self.halting_weight]
-        self.trainable_weights.extend(ks_weights)
-
     def call(self, x, mask=None):
-        encoded_question, current_memory, encoded_knowledge = x
-        # We need to create a tensor which doesn't have the encoding_dim dimension. So that this Layer is
-        # independent of the dimension of the input tensors, we just sum over the last dimension to remove it.
-        # We only use this to create variables, nothing else.
-        reduced_dim_memory = K.sum(current_memory, -1)
-        # This is a boolean mask, holding whether a particular sample has halted.
-        batch_mask = tf.cast(tf.ones_like(reduced_dim_memory, name='batch_mask'), tf.bool)
-        # This counts the number of memory steps per sample.
-        hop_counter = tf.zeros_like(reduced_dim_memory, name='hop_counter')
-        # This accumulates the halting probabilities.
-        halting_accumulator = tf.zeros_like(reduced_dim_memory, name='halting_accumulator')
-        # This also accumulates the halting probabilities, with the difference being that if an
-        # outputed probability causes a particular sample to go over 1 - epsilon, this accumulates
-        # that value, but the halting_accumulator does not. This variable is _only_ used in the
-        # halting condition of the loop.
-        halting_accumulator_for_comparison = tf.zeros_like(reduced_dim_memory, name='halting_acc_for_comparision')
-        # This accumulates the weighted memory vectors at each memory step. The memory is weighted by the
-        # halting probability and added to this accumulator.
-        memory_accumulator = tf.zeros_like(current_memory, name='memory_accumulator')
-        # We need the attended_knowledge from the last memory network step, so we create a dummy variable to
-        # input to the while_loop, as tensorflow requires the input signature to match the output signature.
-        attended_knowledge_loop_placeholder = tf.zeros_like(current_memory, name='attended_knowledge_placeholder')
 
-        ponder_cost = l1(self.ponder_cost_param)
-        ponder_cost.set_param(hop_counter)
-        self.regularizers.append(ponder_cost)
-
-        # Tensorflow requires that we use all of the variables used in the tf.while_loop as inputs to the
-        # condition for halting the loop, even though we only actually make use of two of them.
-        # pylint: disable=unused-argument
-        def halting_condition(batch_mask,
-                              halting_accumulator,
-                              halting_accumulator_for_comparison,
-                              hop_counter,
-                              encoded_question,
-                              current_memory,
-                              encoded_knowledge,
-                              memory_accumulator,
-                              attended_knowledge_placeholder):
-            # This condition checks the batch elementwise to see if any of the accumulated halting
-            # probabilities have gone over one_minus_epsilon in the previous iteration.
-            probability_condition = tf.less(halting_accumulator_for_comparison, self.one_minus_epsilon)
-
-            # This condition checks the batch elementwise to see if any have taken more steps than the max allowed.
-            max_computation_condition = tf.less(hop_counter, self.max_computation)
-            # We only stop if both of the above conditions are true....
-            combined_conditions = tf.logical_and(probability_condition, max_computation_condition)
-            # ... for the entire batch.
-            return tf.reduce_any(combined_conditions)
-
-        # This actually does the computation of self.adaptive_memory_hop,
-        # checking the condition at every step to see if it should stop.
-        _, _, _, hop_counter, _, _, _, current_memory, attended_knowledge = \
-            tf.while_loop(cond=halting_condition, body=self.adaptive_memory_hop,
-                          loop_vars=[
-                                  batch_mask,
-                                  halting_accumulator,
-                                  halting_accumulator_for_comparison,
-                                  hop_counter,
-                                  encoded_question,
-                                  current_memory,
-                                  encoded_knowledge,
-                                  memory_accumulator,
-                                  attended_knowledge_loop_placeholder
-                          ])
-
-        return [current_memory, attended_knowledge]
-
-    def adaptive_memory_hop(self, batch_mask,
-                            halting_accumulator,
-                            halting_accumulator_for_comparison,
-                            hop_counter,
-                            encoded_question,
-                            previous_memory,
-                            encoded_knowledge,
-                            memory_accumulator,
-                            attended_knowledge):
-
-        # First things first: let's actually do a memory network step. This is exactly the same as in the
-        # vanilla memory network. We have to re-assign this as a method for this class because we can't
-        # pass in functions to this method (adaptive_memory_hop) as we use it in the tf.while_loop, which
-        # requires tensor-only arguments.
-        current_memory, attended_knowledge = self.memory_network.memory_step(
-            encoded_question, previous_memory, encoded_knowledge)
+        batch_mask, halting_accumulator, halting_accumulator_for_comparison, hop_counter, \
+            encoded_question, current_memory, encoded_knowledge, memory_accumulator = x
 
         # Here, we are computing the probability that each sample in the batch will halt at this iteration.
         # This outputs a vector of probabilities of shape (samples, ).
@@ -248,19 +258,14 @@ class AdaptiveStep(Layer):
                 encoded_question,
                 current_memory,
                 encoded_knowledge,
-                memory_accumulator,
-                attended_knowledge]
-
-    def compute_mask(self, x, input_mask=None):  # pylint: disable=unused-argument
-        # We don't want to mask either of the outputs here, so we return None for both of them.
-        return [None, None]
+                memory_accumulator]
 
     def get_output_shape_for(self, input_shapes):
         # We output two tensors from this layer, the final memory representation and
         # the attended knowledge from the final memory network step. Both have the same
         # shape as the initial memory vector (samples, encoding_dim) which is passed in as the
         # 2nd argument, so we return this shape twice.
-        return [input_shapes[1], input_shapes[1]]
+        return input_shapes
 
 recurrence_modes = OrderedDict()  # pylint: disable=invalid-name
 recurrence_modes["fixed"] = FixedRecurrence
