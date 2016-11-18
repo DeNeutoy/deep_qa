@@ -38,8 +38,10 @@ object BabiExperiments {
     (name, modelParams)
   }
 
-  val models = Seq(babiMemN2N(1), babiMemN2N(3), dynamicMemoryNetwork(3), adaptiveDynamicMemoryNetwork(3, 0.05),
-    adaptiveDynamicMemoryNetwork(8, 0.05))
+  val models = Seq(babiMemN2N(1), babiMemN2N(3), dynamicMemoryNetwork(3),
+    adaptiveDynamicMemoryNetwork(3, 0.05), adaptiveDynamicMemoryNetwork(3, 0.005), adaptiveDynamicMemoryNetwork(3, 0.1),
+    adaptiveDynamicMemoryNetwork(5, 0.05), adaptiveDynamicMemoryNetwork(5, 0.005), adaptiveDynamicMemoryNetwork(5, 0.1),
+    adaptiveDynamicMemoryNetwork(8, 0.05), adaptiveDynamicMemoryNetwork(8, 0.005), adaptiveDynamicMemoryNetwork(8, 0.1))
 
   def main(args: Array[String]) {
     new BabiEvaluator(Some("babi_experiments"), models, fileUtil).runPipeline()
