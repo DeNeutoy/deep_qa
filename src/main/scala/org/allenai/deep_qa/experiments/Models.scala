@@ -44,16 +44,21 @@ object Models {
     ("encoder" -> ("type" -> encoder)) ~
    ("num_memory_layers" -> numMemoryLayers)
 
-  def adaptiveEndToEndMemoryNetwork(encoder: String, maxMemoryLayers: Int, ponderCost: Double): JValue =
+  def addAdaptiveComponents(maxMemoryLayers: Int, ponderCost: Double): JValue =
+      ("recurrence_mode" ->
+        ("type" -> "adaptive") ~
+          ("max_computation" -> maxMemoryLayers) ~
+            ("ponder_cost_strength" -> ponderCost))
+
+  def dynamicMemoryNetworkPlus(encoder: String, numMemoryLayers: Int): JValue =
     softmaxMemoryNetwork merge
-      basicMemoryNetworkComponents merge
-      ("knowledge_encoder" -> ("type" -> "temporal")) ~
-        ("embedding_size" -> 20) ~
-        ("encoder" -> ("type" -> encoder)) ~
-        ("recurrence_mode" ->
-          ("type" -> "adaptive") ~
-            ("max_computation" -> maxMemoryLayers) ~
-              ("ponder_cost_strength" -> ponderCost))
+    basicMemoryNetworkComponents merge
+      ("encoder" -> ("type" -> encoder)) ~
+        ("knowledge_encoder" -> ("type" -> "bi_gru")) ~
+        ("knowledge_selector" -> ("type" -> "parameterized_heuristic_matching")) ~
+        ("knowledge_combiner" -> "attentive_gru") ~
+        ("num_memory_layers" -> numMemoryLayers) ~
+        ("embedding_size" -> 80)
 }
 
 object Debug {
@@ -129,4 +134,12 @@ object Training {
       ("patience" -> 1) ~
       ("train_files" -> List("/efs/data/dlfa/busc/busc_encoder_pretrain_data_shuf.tsv"))
     ))
+
+  val dynamicMemoryNetworkParameters: JValue =
+      ("num_epochs" -> 256) ~
+      ("patience" -> 20) ~
+      ("embedding_size" -> 80)
+
+
+
 }
