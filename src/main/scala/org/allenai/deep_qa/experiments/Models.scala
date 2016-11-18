@@ -42,8 +42,18 @@ object Models {
     ("knowledge_encoder" -> ("type" -> "temporal")) ~
     ("embedding_size" -> 20) ~
     ("encoder" -> ("type" -> encoder)) ~
-    ("num_memory_layers" -> numMemoryLayers)
+   ("num_memory_layers" -> numMemoryLayers)
 
+  def adaptiveEndToEndMemoryNetwork(encoder: String, maxMemoryLayers: Int, ponderCost: Double): JValue =
+    softmaxMemoryNetwork merge
+      basicMemoryNetworkComponents merge
+      ("knowledge_encoder" -> ("type" -> "temporal")) ~
+        ("embedding_size" -> 20) ~
+        ("encoder" -> ("type" -> encoder)) ~
+        ("recurrence_mode" ->
+          ("type" -> "adaptive") ~
+            ("max_computation" -> maxMemoryLayers) ~
+              ("ponder_cost_strength" -> ponderCost))
 }
 
 object Debug {

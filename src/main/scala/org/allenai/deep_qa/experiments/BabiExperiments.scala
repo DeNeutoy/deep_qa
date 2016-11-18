@@ -16,8 +16,14 @@ object BabiExperiments {
     val name = s"babi_memn2n_${numMemoryLayers}_layers"
     (name, modelParams)
   }
+  def adaptiveBabiMemN2N(maxMemorySteps: Int, ponderCost: Double): (String, JValue) = {
+    val modelParams: JValue = Models.adaptiveEndToEndMemoryNetwork("bow", maxMemorySteps, ponderCost) merge
+    Training.long
+    val name = s"adaptive_babi_memn2n_${ponderCost}_ponder_cost"
+    (name, modelParams)
+  }
 
-  val models = Seq(babiMemN2N(1), babiMemN2N(3))
+  val models = Seq(babiMemN2N(1), babiMemN2N(3), adaptiveBabiMemN2N(3, 0.05), adaptiveBabiMemN2N(8,0.05))
 
   def main(args: Array[String]) {
     new BabiEvaluator(Some("babi_experiments"), models, fileUtil).runPipeline()
