@@ -56,7 +56,7 @@ object Models {
       ("encoder" -> ("type" -> encoder)) ~
         ("knowledge_encoder" -> ("type" -> "bi_gru")) ~
         ("knowledge_selector" -> ("type" -> "parameterized_heuristic_matching")) ~
-        ("knowledge_combiner" -> "attentive_gru") ~
+        ("knowledge_combiner" -> ("type" -> "attentive_gru")) ~
         ("num_memory_layers" -> numMemoryLayers) ~
         ("embedding_size" -> 80)
 }
