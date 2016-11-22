@@ -57,8 +57,9 @@ object Models {
         ("knowledge_encoder" -> ("type" -> "bi_gru")) ~
         ("knowledge_selector" -> ("type" -> "parameterized_heuristic_matching")) ~
         ("knowledge_combiner" -> ("type" -> "attentive_gru")) ~
+        ("memory_updater" -> ("type" -> "dense_concat")) ~
         ("num_memory_layers" -> numMemoryLayers) ~
-        ("embedding_size" -> 80)
+        ("embedding_size" -> 20)
 }
 
 object Debug {

@@ -17,31 +17,22 @@ object BabiExperiments {
     (name, modelParams)
   }
 
-  def babiDynamicMemoryNetworkPlus(numMemoryLayers: Int): (String, JValue) = {
-    val modelParams: JValue = Models.endToEndMemoryNetwork("bow", numMemoryLayers) merge Training.long
-    val name = s"babi_dynamicMN_${numMemoryLayers}_layers"
-    (name, modelParams)
-
-  }
   def dynamicMemoryNetwork(numMemorySteps: Int): (String, JValue) = {
     val modelParams: JValue = Models.dynamicMemoryNetworkPlus("positional", 3) merge
-    Training.dynamicMemoryNetworkParameters
+    Training.default
     val name = s"dynamic_mn_babi_${numMemorySteps}_memory_layers"
     (name, modelParams)
   }
 
   def adaptiveDynamicMemoryNetwork(maxMemorySteps: Int, ponderCost: Double): (String, JValue) = {
     val modelParams: JValue = Models.dynamicMemoryNetworkPlus("positional", 3) merge
-      Training.dynamicMemoryNetworkParameters merge
+      Training.default merge
       Models.addAdaptiveComponents(maxMemorySteps, ponderCost)
     val name = s"adaptive_dynamic_mn_babi__${ponderCost}_ponder_cost"
     (name, modelParams)
   }
 
-  val models = Seq(babiMemN2N(1), babiMemN2N(3), dynamicMemoryNetwork(3),
-    adaptiveDynamicMemoryNetwork(3, 0.05), adaptiveDynamicMemoryNetwork(3, 0.005), adaptiveDynamicMemoryNetwork(3, 0.1),
-    adaptiveDynamicMemoryNetwork(5, 0.05), adaptiveDynamicMemoryNetwork(5, 0.005), adaptiveDynamicMemoryNetwork(5, 0.1),
-    adaptiveDynamicMemoryNetwork(8, 0.05), adaptiveDynamicMemoryNetwork(8, 0.005), adaptiveDynamicMemoryNetwork(8, 0.1))
+  val models = Seq(dynamicMemoryNetwork(3), adaptiveDynamicMemoryNetwork(3, 0.05))
 
   def main(args: Array[String]) {
     new BabiEvaluator(Some("babi_experiments"), models, fileUtil).runPipeline()
