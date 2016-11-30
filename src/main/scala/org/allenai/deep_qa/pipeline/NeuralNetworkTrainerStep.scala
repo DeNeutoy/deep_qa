@@ -40,21 +40,20 @@ class NeuralNetworkTrainerStep(
   // names, if desired.  So we blank out the name before computing the hash.  I would just remove
   // it, but I don't know how to do a non-recursive remove with json4s.
   val getGitCommitSha = "git rev-parse HEAD"
-  val stdout = List[String]()
+  var stdout = String
   val exitCode = Process(getGitCommitSha).!(ProcessLogger(
-
     stdoutLine => {
       // This would add the git sha even if the process returns a
       // non-zero exit code, but we catch that below.
       println(s"Found git sha $stdoutLine. Adding to model hash.")
-      stdout :+ stdoutLine
+      stdout = stdoutLine
     },
     stderrLine => println(stderrLine)
   ))
   if (exitCode != 0){
     throw new RuntimeException(s"Attempted to get Git sha - returned non-zero exit code.")
   }
-  val paramsForHash = params merge (("git sha" -> stdout.head): JValue) merge (("name" -> "removed"): JValue)
+  val paramsForHash = params merge (("git sha" -> stdout): JValue) merge (("name" -> "removed"): JValue)
   val modelHash = paramsForHash.hashCode.toHexString
   val modelPrefix = s"/efs/data/dlfa/models/$modelHash/"
   val modelName = JsonHelper.extractWithDefault(params, "name", modelHash)
