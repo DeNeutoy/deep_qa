@@ -54,7 +54,7 @@ class NeuralNetworkTrainerStep(
   if (exitCode != 0){
     throw new RuntimeException(s"Attempted to get Git sha - returned non-zero exit code.")
   }
-  val paramsForHash = params merge ("git sha" -> stdout.head) merge ("name" -> "removed")
+  val paramsForHash = params merge (("git sha" -> stdout.head): JValue) merge (("name" -> "removed"): JValue)
   val modelHash = paramsForHash.hashCode.toHexString
   val modelPrefix = s"/efs/data/dlfa/models/$modelHash/"
   val modelName = JsonHelper.extractWithDefault(params, "name", modelHash)
