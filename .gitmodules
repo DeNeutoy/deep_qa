@@ -1,0 +1,3 @@
+[submodule "dauqs"]
+	path = dauqs
+	url = https://github.com/DeNeutoy/dauqs.git
