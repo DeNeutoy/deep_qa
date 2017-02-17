@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def readme():
@@ -20,7 +20,7 @@ setup(name='deep_qa',
       author='Matt Gardner',
       author_email='mattg@allenai.org',
       license='Apache',
-      packages=['deep_qa'],
+      packages=find_packages(),
       install_requires=[
           'keras>=1.2.2',
           'h5py',
