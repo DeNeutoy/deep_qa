@@ -100,24 +100,24 @@ submitting a pull request to fix it would be really nice!
 The best way currently to get an idea for what options are available in
 this configuration file, and what those options mean, is to look at the
 class mentioned in the ``solver_class`` field. Looking at the
-```dynamic_memory_network.json`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json>`__
+``dynamic_memory_network.json`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json>`__
 example, we can see that it's using a
 ``MultipleTrueFalseMemoryNetworkSolver`` as it's
-```solver_class`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json#L2>`__.
-If we go to that class's ```__init__``
-method <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/multiple_true_false_memory_network.py#L31>`__,
+``solver_class`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json#L2>`__.
+If we go to that class's ``__init__``
+method `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/multiple_true_false_memory_network.py#L31>`__,
 in the code, we don't see any parameters, because
 ``MultipleTrueFalseMemoryNetworkSolver`` has no unique parameters of its
 own. So, we continue up the class hierarchy to
-```MemoryNetworkSolver`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L69>`__,
+``MemoryNetworkSolver`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L69>`__,
 and we can see the parameters that it takes: things like
 ``num_memory_layers``, ``knowledge_encoder``, ``entailment_model``, and
 so on. If you continue on to its super class,
-```TextTrainer`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
+``TextTrainer`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
 you'll find more parameters, this time for things that deal with word
 embeddings and sentence encoders. Finally, you can continue to the base
 class,
-```Trainer`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
+``Trainer`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
 to see parameters for things like whether and where models should be
 saved, how to run training, specifying debug output, running
 pre-training, and other things. It would be nice to automatically
@@ -132,11 +132,11 @@ that are valid options for the ``solver_class`` parameter in a model
 config file. One way to find lists of available options for these
 parameters (other than just by tracing the handling of parameters in the
 code) is by searching github for
-```get_choice`` <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice>`__
+``get_choice`` 'link <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice>`__
 or
-```get_choice_with_default`` <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice_with_default>`__.
+``get_choice_with_default`` `link <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice_with_default>`__.
 This might point you, for instance, to the
-```knowledge_encoders`` <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L217>`__
+``knowledge_encoders`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L217>`__
 field in ``memory_network.py``, which is
 `imported <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L17>`__
 from ``layers/knowledge_encoders.py``, where it is defined at the
