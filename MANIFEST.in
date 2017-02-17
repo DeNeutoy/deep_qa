@@ -1,0 +1,4 @@
+include README.md
+include requirements.txt
+include scripts/*
+include example_experiments/*.json
