@@ -7,9 +7,70 @@ This repository contains code for training deep learning systems to do
 question answering tasks. Our primary focus is on Aristo's science
 questions, though we can run various models on several popular datasets.
 
-This code is a mix of scala (for data processing / pipeline management)
-and python (for actually training and executing deep models with Keras /
-Theano / TensorFlow).
+This library is built on top of Keras (for actually training and executing deep models) and
+is also designed to be used with an experiment framework written in Scala, which you can find here:
+`Deep QA Experiments <https://github.com/allenai/deep_qa_experiments>`__.
+
+
+Running experiments with python
+-------------------------------
+
+Although we recommend using the Deep QA Experiments library to run
+reproducible experiments, this library is designed as standalone software
+which runs deep NLP models using json specification files.
+To do this, from the base directory, you run the command
+``python src/main/python/run_solver.py [model_config]``. You must use
+python >= 3.5, as we make heavy use of the type annotations introduced
+in python 3.5 to aid in code readability (I recommend using
+`anaconda <https://www.continuum.io/downloads>`__ to set up python 3, if
+you don't have it set up already).
+
+You can see some examples of what model configuration files look like in
+the `example experiments
+directory <https://github.com/allenai/deep_qa/tree/master/example_experiments>`__.
+We try to keep these up to date, but the way parameters are specified is
+still sometimes in a state of flux, so we make no promises that these
+are actually usable with the current master. Looking at the most
+recently added or changed example experiment should be your best bet to
+get an accurate format. If you find one that's out of date,
+submitting a pull request to fix it would be great.
+
+
+Finally, the way parameters are parsed in DeepQA can be a little confusing.
+When you provide a json specification, various classes will pop things from
+this dictionary of values (actually pop them, so they aren't in the parameter dict any more).
+This is helpful because it allows you to check that all of the parameters you
+pass are used at some point, preventing hard to find bugs, as well as enabling
+clear separation of functionality because there are no globally defined variables,
+such as is often the case with other argument parsing methods.
+
+Organisation
+------------
+
+The deep_qa library is organised into the following main sections:
+
+- Common: Code for parameter parsing, logging and runtime checks.
+- Contrib: Related code for experiments and untested layers, models and features. Generally untested.
+- Data: Indexing, padding, tokenisation, stemming, embedding and general dataset manipulation happens here.
+- Layers: The bulk of the library. Use these Layers to compose new models. Some of these Layers are very
+  similar to what you might find in Keras, but altered slightly to support arbitrary dimensions or correct masking.
+- Models: Frameworks for different types of task. These generally all extend the TextTrainer class which provides
+  training capabilities to a DeepQaModel. We have models for Sequence Tagging, Entailment, Multiple Choice QA, Reading
+  Comprehension and more. Take a look at the README for more details.
+- Tensors: Convenience functions for writing the internals of Layers. Will almost exclusively be used inside Layer
+  implementations.
+- Training: This module does the heavy lifting for training and optimisation. We also wrap the Keras Model class to
+  give it some useful debugging functionality.
+
+
+We've tried to also give reasonable documentation throughout the code,
+both in docstring comments and in READMEs distributed throughout the
+code packages, so browsing github should be pretty informative if you're
+confused about something. If you're still confused about how something
+works, open an issue asking to improve documentation of a particular
+piece of the code (or, if you've figured it out after searching a bit,
+submit a pull request containing documentation improvements that would
+have helped you).
 
 Implemented models
 ==================
@@ -25,13 +86,19 @@ including the models found in these papers:
    by Sukhbaatar and others (close, but still in progress)
 -  `Dynamic memory
    networks <https://www.semanticscholar.org/paper/Ask-Me-Anything-Dynamic-Memory-Networks-for-Kumar-Irsoy/04ee77ef1143af8b19f71c63b8c5b077c5387855>`__,
-   by Kumar and others (close, but still in progress)
+   by Kumar and others
 -  DMN+, from `Dynamic Memory Networks for Visual and Textual Question
    Answering <https://www.semanticscholar.org/paper/Dynamic-Memory-Networks-for-Visual-and-Textual-Xiong-Merity/b2624c3cb508bf053e620a090332abce904099a1>`__,
-   by Xiong, Merity and Socher (close, but still in progress)
+   by Xiong, Merity and Socher
 -  The attentive reader, from `Teaching Machines to Read and
    Comprehend <https://www.semanticscholar.org/paper/Teaching-Machines-to-Read-and-Comprehend-Hermann-Kocisk%C3%BD/2cb8497f9214735ffd1bd57db645794459b8ff41>`__,
    by Hermann and others
+-  Gated Attention Reader from `Gated Attention Readers for Text Comprehension
+   <https://www.semanticscholar.org/paper/Gated-Attention-Readers-for-Text-Comprehension-Dhingra-Liu/200594f44c5618fa4121be7197c115f78e6e110f>`__,
+-  Bidirectional Attention Flow, from `Bidirectional Attention Flow for Machine Comprehension
+   <https://www.semanticscholar.org/paper/Bidirectional-Attention-Flow-for-Machine-Seo-Kembhavi/007ab5528b3bd310a80d553cccad4b78dc496b02>`__,
+-  Decomposable Attention, from `A Decomposable Attention Model for Natural Language Inference
+   <https://www.semanticscholar.org/paper/A-Decomposable-Attention-Model-for-Natural-Parikh-T%C3%A4ckstr%C3%B6m/07a9478e87a8304fc3267fa16e83e9f3bbd98b27>`__,
 -  Windowed-memory MemNNs, from `The Goldilocks Principle: Reading
    Children's Books with Explicit Memory
    Representations <https://www.semanticscholar.org/paper/The-Goldilocks-Principle-Reading-Children-s-Books-Hill-Bordes/1ee46c3b71ebe336d0b278de9093cfca7af7390b>`__
@@ -40,8 +107,8 @@ including the models found in these papers:
 As well as some of our own, as-yet-unpublished variants. There is a lot
 of similarity between the models in these papers, and our code is
 structured in a way to allow for easily switching between these models.
-For a description of how we've built an extensible memory network
-architecture in this library, see `this
+As an example of this modular approach, here is a description of how we've
+built an extensible memory network architecture in this library: `this
 readme. <./src/main/python/deep_qa/models/memory_networks/README.md>`__
 # Datasets
 
@@ -63,100 +130,6 @@ And more to come... In the near future, we hope to also include easy
 experimentation with `CNN/Daily Mail <http://cs.nyu.edu/~kcho/DMQA/>`__
 and `SimpleQuestions <https://research.facebook.com/research/babi/>`__.
 
-Usage Guide
-===========
-
-This code is a mix of scala and python. The intent is that the data
-processing and experiment pipeline code is in scala, and the deep
-learning code is in python. The recommended approach is to set up your
-experiments in scala code, then run them through ``sbt``. Some
-documentation on how to do this is found in the `README for the
-``org.allenai.deep_qa.experiments``
-package <src/main/scala/org/allenai/deep_qa/experiments/>`__.
-
-Running experiments with python
--------------------------------
-
-If for whatever reason you don't want to gain the benefits of the scala
-pipeline when running experiments, you can run the python code manually.
-To do this, from the base directory, you run the command
-``python src/main/python/run_solver.py [model_config]``. You must use
-python >= 3.5, as we make heavy use of the type annotations introduced
-in python 3.5 to aid in code readability (I recommend using
-`anaconda <https://www.continuum.io/downloads>`__ to set up python 3, if
-you don't have it set up already).
-
-You can see some examples of what model configuration files look like in
-the `example experiments
-directory <https://github.com/allenai/deep_qa/tree/master/example_experiments>`__.
-We try to keep these up to date, but the way parameters are specified is
-still sometimes in a state of flux, so we make no promises that these
-are actually usable with the current master (and you'll have to provide
-your own input files to use them, in any event). Looking at the most
-recently added or changed example experiment should be your best bet to
-get an accurate format. And if you find one that's out of date,
-submitting a pull request to fix it would be really nice!
-
-The best way currently to get an idea for what options are available in
-this configuration file, and what those options mean, is to look at the
-class mentioned in the ``solver_class`` field. Looking at the
-``dynamic_memory_network.json`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json>`__
-example, we can see that it's using a
-``MultipleTrueFalseMemoryNetworkSolver`` as it's
-``solver_class`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/example_experiments/dynamic_memory_network.json#L2>`__.
-If we go to that class's ``__init__``
-method `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/multiple_true_false_memory_network.py#L31>`__,
-in the code, we don't see any parameters, because
-``MultipleTrueFalseMemoryNetworkSolver`` has no unique parameters of its
-own. So, we continue up the class hierarchy to
-``MemoryNetworkSolver`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L69>`__,
-and we can see the parameters that it takes: things like
-``num_memory_layers``, ``knowledge_encoder``, ``entailment_model``, and
-so on. If you continue on to its super class,
-``TextTrainer`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
-you'll find more parameters, this time for things that deal with word
-embeddings and sentence encoders. Finally, you can continue to the base
-class,
-``Trainer`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/training/text_trainer.py#L32>`__,
-to see parameters for things like whether and where models should be
-saved, how to run training, specifying debug output, running
-pre-training, and other things. It would be nice to automatically
-generate some website to document all of these parameters, but I don't
-know how to do that and don't have the time to dedicate to making it
-happen. So for now, just read the comments that are in the code.
-
-There are several places where we give lists of available choices for
-particular options. For example, there is a `list of concrete solver
-classes <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/__init__.py#L15-L24>`__
-that are valid options for the ``solver_class`` parameter in a model
-config file. One way to find lists of available options for these
-parameters (other than just by tracing the handling of parameters in the
-code) is by searching github for
-``get_choice`` 'link <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice>`__
-or
-``get_choice_with_default`` `link <https://github.com/allenai/deep_qa/search?utf8=%E2%9C%93&q=get_choice_with_default>`__.
-This might point you, for instance, to the
-``knowledge_encoders`` `link <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L217>`__
-field in ``memory_network.py``, which is
-`imported <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/solvers/with_memory/memory_network.py#L17>`__
-from ``layers/knowledge_encoders.py``, where it is defined at the
-`bottom of the
-file <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/layers/knowledge_encoders.py#L75-L77>`__.
-In general, the places where there are these kinds of options are in the
-solver class (already mentioned), and the various layers we have
-implemented - each kind of ``Layer`` will typically specify a list of
-options either at the bottom of the corresponding file, or in an
-associated ``__init__.py`` file (as is done with the `sentence
-encoders <https://github.com/allenai/deep_qa/blob/932849e8b3ebec6882680231924248669cc19758/src/main/python/deep_qa/layers/encoders/__init__.py>`__).
-
-We've tried to also give reasonable documentation throughout the code,
-both in docstring comments and in READMEs distributed throughout the
-code packages, so browsing github should be pretty informative if you're
-confused about something. If you're still confused about how something
-works, open an issue asking to improve documentation of a particular
-piece of the code (or, if you've figured it out after searching a bit,
-submit a pull request containing documentation improvements that would
-have helped you).
 
 Contributing
 ============
