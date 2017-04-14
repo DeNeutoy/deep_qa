@@ -95,3 +95,6 @@ sphinx_rtd_theme
 
 # Only used to convert our readme to reStructuredText on Pypi.
 pypandoc
+
+# Pypi uploads
+twine
