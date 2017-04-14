@@ -1,14 +1,16 @@
 from setuptools import setup, find_packages
 
 
-def readme():
-    with open('README.rst') as f:
-        return f.read()
+try:
+    import pypandoc
+    long_description = pypandoc.convert('README.md', 'rst')
+except(IOError, ImportError):
+    long_description = open('README.md').read()
 
 setup(name='deep_qa',
       version='0.1',
       description='Using deep learning to answer Aristo\'s science questions',
-      long_description=readme(),
+      long_description=long_description,
       classifiers=[
           'Development Status :: 3 - Alpha',
           'License :: OSI Approved :: Apache Software License',
@@ -18,7 +20,7 @@ setup(name='deep_qa',
       keywords='deep_qa NLP deep learning machine reading',
       url='https://github.com/allenai/deep_qa',
       author='Matt Gardner',
-      author_email='mattg@allenai.org',
+      author_email='deep-qa@allenai.org',
       license='Apache',
       packages=find_packages(),
       install_requires=[
