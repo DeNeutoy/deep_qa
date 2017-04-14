@@ -4,8 +4,7 @@ Status](https://api.travis-ci.org/allenai/deep_qa.svg?branch=master)](https://tr
 Status](https://readthedocs.org/projects/deep-qa/badge/?version=latest)](http://deep-qa.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/allenai/deep_qa/branch/master/graph/badge.svg)](https://codecov.io/gh/allenai/deep_qa)
 
-Deep QA
-=======
+# Deep QA
 
 This repository contains code for training deep learning systems to do
 question answering tasks. Our primary focus is on Aristo's science
@@ -16,8 +15,7 @@ executing deep models) and is also designed to be used with an
 experiment framework written in Scala, which you can find here: [Deep QA
 Experiments](https://github.com/allenai/deep_qa_experiments).
 
-Running experiments with python
--------------------------------
+## Running experiments with python
 
 Although we recommend using the Deep QA Experiments library to run
 reproducible experiments, this library is designed as standalone
@@ -49,8 +47,7 @@ separation of functionality because there are no globally defined
 variables, such as is often the case with other argument parsing
 methods.
 
-Organisation
-------------
+## Organisation
 
 The deep\_qa library is organised into the following main sections:
 
@@ -83,8 +80,7 @@ piece of the code (or, if you've figured it out after searching a bit,
 submit a pull request containing documentation improvements that would
 have helped you).
 
-Implemented models
-==================
+## Implemented models
 
 This repository implements several variants of memory networks,
 including the models found in these papers:
@@ -143,8 +139,7 @@ And more to come... In the near future, we hope to also include easy
 experimentation with [CNN/Daily Mail](http://cs.nyu.edu/~kcho/DMQA/) and
 [SimpleQuestions](https://research.facebook.com/research/babi/).
 
-Contributing
-============
+## Contributing
 
 If you use this code and think something could be improved, pull
 requests are very welcome. Opening an issue is ok, too, but we're a lot
@@ -154,8 +149,7 @@ more likely to respond to a PR. The primary maintainer of this code is
 author of this codebase), [Mark Neumann](http://markneumann.xyz/) and
 [Nelson Liu](http://nelsonliu.me/).
 
-License
-=======
+## License
 
 This code is released under the terms of the [Apache 2
 license](https://www.apache.org/licenses/LICENSE-2.0).
