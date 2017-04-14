@@ -13,9 +13,10 @@ this library:
    masking that are not handled well in the main Keras code, and we have well-tested code that
    does the right thing for, e.g., computing attentions over padded sequences, or distributing text
    encoders across several sentences or words.
-#. We have implemented a base class, ``TextTrainer``, that provides a nice, consistent API around
-   building NLP models in Keras.  This API has functionality around processing data instances,
-   embedding words and/or characters, easily getting various kinds of sentence encoders, and so on.
+#. We have implemented a base class, :class:`~deep_qa.training.text_trainer.TextTrainer`, that
+   provides a nice, consistent API around building NLP models in Keras.  This API has functionality
+   around processing data instances, embedding words and/or characters, easily getting various
+   kinds of sentence encoders, and so on.
 #. We provide a nice interface to training, validating, and debugging Keras models.  It is very
    easy to experiment with variants of a model family, just by changing some parameters in a JSON
    file.  For example, you can go from using fixed GloVe vectors to represent words, to fine-tuning
@@ -45,36 +46,13 @@ This library has several main components:
    self
 
 .. toctree::
-   :caption: Models
+   :caption: Training
    :hidden:
 
    training/about_trainers
-   training/trainers
-   training/pretrainers
-
-.. toctree::
-   :caption: Layers
-   :hidden:
-
-   layers/about_layers
-   layers/core_layers
-   layers/backend
-   layers/encoders
-   layers/entailment_models
-   layers/attention
-
-.. toctree::
-   :caption: Models
-   :hidden:
-
-   models/about_models
-   models/entailment
-   models/memory_networks
-   models/memory_networks_pretrainers
-   models/multiple_choice_qa
-   models/reading_comprehension
-   models/text_classification
-   models/text_pretrainers
+   training/trainer
+   training/text_trainer
+   training/misc
 
 .. toctree::
    :caption: Data
@@ -84,6 +62,31 @@ This library has several main components:
    data/general_data_utils
    data/instances
    data/tokenizers
+
+.. toctree::
+   :caption: Models
+   :hidden:
+
+   models/about_models
+   models/entailment
+   models/memory_networks
+   models/multiple_choice_qa
+   models/sentence_selection
+   models/reading_comprehension
+   models/text_classification
+
+.. toctree::
+   :caption: Layers
+   :hidden:
+
+   layers/about_layers
+   layers/core_layers
+   layers/attention
+   layers/backend
+   layers/encoders
+   layers/entailment_models
+   layers/tuple_matchers
+   layers/wrappers
 
 .. toctree::
    :caption: Tensor Utils
@@ -100,10 +103,3 @@ This library has several main components:
    common/about_common
    common/checks
    common/params
-
-.. toctree::
-   :hidden:
-   :maxdepth: 4
-   :caption: Other
-
-   api_doc/deep_qa

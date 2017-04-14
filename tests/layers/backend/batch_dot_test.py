@@ -1,5 +1,4 @@
 # pylint: disable=no-self-use,invalid-name
-from unittest import TestCase
 import numpy
 from numpy.testing import assert_almost_equal
 import keras.backend as K
@@ -7,10 +6,11 @@ from keras.layers import Input, Masking
 from keras.models import Model
 
 from deep_qa.layers.backend.batch_dot import BatchDot
-from deep_qa.layers.wrappers import OutputMask
+from deep_qa.layers.wrappers.output_mask import OutputMask
+from ...common.test_case import DeepQaTestCase
 
 
-class TestBatchDotLayer(TestCase):
+class TestBatchDotLayer(DeepQaTestCase):
     def test_compute_mask_basic(self):
         batch_size = 2
         # test the case where the tensors are even
@@ -98,8 +98,8 @@ class TestBatchDotLayer(TestCase):
         a_dot_b = BatchDot()([masked_tensor_a, masked_tensor_b])
 
         a_dot_b_mask = OutputMask()(a_dot_b)
-        model = Model(input=[input_tensor_a, input_tensor_b],
-                      output=[a_dot_b, a_dot_b_mask])
+        model = Model(inputs=[input_tensor_a, input_tensor_b],
+                      outputs=[a_dot_b, a_dot_b_mask])
         # a_dot_b and mask_tensor are of shape (3, 2).
         a_dot_b_tensor, mask_tensor = model.predict([tensor_a, tensor_b])
         # Test that the dot happened like we expected.
@@ -130,8 +130,8 @@ class TestBatchDotLayer(TestCase):
         a_dot_b = BatchDot()([masked_tensor_a, masked_tensor_b])
 
         a_dot_b_mask = OutputMask()(a_dot_b)
-        model = Model(input=[input_tensor_a, input_tensor_b],
-                      output=[a_dot_b, a_dot_b_mask])
+        model = Model(inputs=[input_tensor_a, input_tensor_b],
+                      outputs=[a_dot_b, a_dot_b_mask])
         # a_dot_b and mask_tensor are of shape (3, 2).
         a_dot_b_tensor, mask_tensor = model.predict([tensor_a, tensor_b])
         # Test that the dot happened like we expected.
@@ -169,8 +169,8 @@ class TestBatchDotLayer(TestCase):
             a_dot_b = BatchDot()([masked_tensor_a, masked_tensor_b])
 
         a_dot_b_mask = OutputMask()(a_dot_b)
-        model = Model(input=[input_tensor_a, input_tensor_b],
-                      output=[a_dot_b, a_dot_b_mask])
+        model = Model(inputs=[input_tensor_a, input_tensor_b],
+                      outputs=[a_dot_b, a_dot_b_mask])
         # a_dot_b and mask_tensor are of shape (3, 4, 2).
         a_dot_b_tensor, mask_tensor = model.predict([tensor_a, tensor_b])
         # Test that the dot happened like we expected.
@@ -210,8 +210,8 @@ class TestBatchDotLayer(TestCase):
         else:
             a_dot_b = BatchDot()([masked_tensor_a, masked_tensor_b])
         a_dot_b_mask = OutputMask()(a_dot_b)
-        model = Model(input=[input_tensor_a, input_tensor_b],
-                      output=[a_dot_b, a_dot_b_mask])
+        model = Model(inputs=[input_tensor_a, input_tensor_b],
+                      outputs=[a_dot_b, a_dot_b_mask])
         # a_dot_b and mask_tensor are of shape (3, 4, 2).
         a_dot_b_tensor, mask_tensor = model.predict([tensor_a, tensor_b])
         # Test that the dot happened like we expected.
@@ -239,4 +239,4 @@ class TestBatchDotLayer(TestCase):
                                   [K.ones(shape=a_shape), K.ones(shape=b_shape)])
             else:
                 assert K.eval(bd([K.ones(shape=a_shape), K.ones(shape=b_shape)])).shape == expected_shape
-            assert bd.get_output_shape_for([a_shape, b_shape]) == expected_shape
+            assert bd.compute_output_shape([a_shape, b_shape]) == expected_shape

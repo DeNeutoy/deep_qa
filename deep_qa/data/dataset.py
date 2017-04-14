@@ -1,9 +1,10 @@
 import codecs
+from collections import OrderedDict
 import itertools
 import logging
-
-from collections import OrderedDict
 from typing import Dict, List
+
+import tqdm
 
 from .instances.instance import Instance, TextInstance, IndexedInstance
 from .instances.background_instance import BackgroundInstance
@@ -40,6 +41,7 @@ class Dataset:
         that each group of four instances has exactly one instance with label True, and all other
         labels are False (i.e., no None labels for validation data).
         """
+        # TODO(matt): this method does not belong on `Dataset`.
         for instance in self.instances:
             if isinstance(instance, MultipleTrueFalseInstance):
                 return False
@@ -93,10 +95,11 @@ class TextDataset(Dataset):
         '''
         Converts the Dataset into an IndexedDataset, given a DataIndexer.
         '''
-        indexed_instances = [instance.to_indexed_instance(data_indexer) for instance in self.instances]
+        indexed_instances = [instance.to_indexed_instance(data_indexer) for instance in tqdm.tqdm(self.instances)]
         return IndexedDataset(indexed_instances)
 
     def to_question_dataset(self) -> 'Dataset':
+        # TODO(matt): this method does not belong on `TextDataset`
         assert self.can_be_converted_to_multiple_choice()
         questions = zip(*[self.instances[i::4] for i in range(4)])
         question_instances = []
@@ -106,7 +109,8 @@ class TextDataset(Dataset):
 
     @staticmethod
     def read_from_file(filename: str, instance_class, label: bool=None):
-        lines = [x.strip() for x in codecs.open(filename, "r", "utf-8").readlines()]
+        lines = [x.strip() for x in tqdm.tqdm(codecs.open(filename, "r",
+                                                          "utf-8").readlines())]
         return TextDataset.read_from_lines(lines, instance_class, label)
 
     @staticmethod
@@ -191,23 +195,23 @@ class IndexedDataset(Dataset):
     def __init__(self, instances: List[IndexedInstance]):
         super(IndexedDataset, self).__init__(instances)
 
-    def max_lengths(self):
-        max_lengths = {}
+    def padding_lengths(self):
+        padding_lengths = {}
         lengths = [instance.get_lengths() for instance in self.instances]
         if not lengths:
-            return max_lengths
+            return padding_lengths
         for key in lengths[0]:
-            max_lengths[key] = max(x[key] if key in x else 0 for x in lengths)
-        return max_lengths
+            padding_lengths[key] = max(x[key] if key in x else 0 for x in lengths)
+        return padding_lengths
 
-    def pad_instances(self, max_lengths: Dict[str, int]=None):
+    def pad_instances(self, padding_lengths: Dict[str, int]=None):
         """
         Make all of the IndexedInstances in the dataset have the same length by padding them (in
         the front) with zeros.
 
         If max_length is given for a particular dimension, we will pad all instances to that length
         (including left-truncating instances if necessary).  If not, we will find the longest
-        instance and pad all instances to that length.  Note that max_lengths is a _List_, not an
+        instance and pad all instances to that length.  Note that padding_lengths is a _List_, not an
         int - there could be several dimensions on which we need to pad, depending on what kind of
         instance we are dealing with.
 
@@ -218,17 +222,17 @@ class IndexedDataset(Dataset):
         # given a max length for a particular dimension.  If we were, we use that instead of the
         # instance-based one.
         logger.info("Getting max lengths from instances")
-        instance_max_lengths = self.max_lengths()
-        logger.info("Instance max lengths: %s", str(instance_max_lengths))
+        instance_padding_lengths = self.padding_lengths()
+        logger.info("Instance max lengths: %s", str(instance_padding_lengths))
         lengths_to_use = {}
-        for key in instance_max_lengths:
-            if max_lengths and max_lengths[key] is not None:
-                lengths_to_use[key] = max_lengths[key]
+        for key in instance_padding_lengths:
+            if padding_lengths and padding_lengths[key] is not None:
+                lengths_to_use[key] = padding_lengths[key]
             else:
-                lengths_to_use[key] = instance_max_lengths[key]
+                lengths_to_use[key] = instance_padding_lengths[key]
 
         logger.info("Now actually padding instances to length: %s", str(lengths_to_use))
-        for instance in self.instances:
+        for instance in tqdm.tqdm(self.instances):
             instance.pad(lengths_to_use)
 
     def as_training_data(self):

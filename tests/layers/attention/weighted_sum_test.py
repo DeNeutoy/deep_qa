@@ -5,7 +5,6 @@ from keras.layers import Embedding, Input
 from keras.models import Model
 
 from deep_qa.layers.attention.weighted_sum import WeightedSum
-from ...common.test_markers import requires_tensorflow
 
 class TestWeightedSumLayer:
     def test_call_works_on_simple_input(self):
@@ -15,7 +14,7 @@ class TestWeightedSumLayer:
         matrix_input = Input(shape=(sentence_length, embedding_dim), dtype='float32')
         attention_input = Input(shape=(sentence_length,), dtype='float32')
         aggregated_vector = WeightedSum()([matrix_input, attention_input])
-        model = Model(input=[matrix_input, attention_input], output=[aggregated_vector])
+        model = Model(inputs=[matrix_input, attention_input], outputs=[aggregated_vector])
         sentence_tensor = numpy.random.rand(batch_size, sentence_length, embedding_dim)
         attention_tensor = numpy.asarray([[.3, .4, .1, 0, 1.2]])
         aggregated_tensor = model.predict([sentence_tensor, attention_tensor])
@@ -36,7 +35,7 @@ class TestWeightedSumLayer:
         matrix_input = Input(shape=(length_1, length_2, length_3, embedding_dim), dtype='float32')
         attention_input = Input(shape=(length_1, length_2, length_3,), dtype='float32')
         aggregated_vector = WeightedSum()([matrix_input, attention_input])
-        model = Model(input=[matrix_input, attention_input], output=[aggregated_vector])
+        model = Model(inputs=[matrix_input, attention_input], outputs=[aggregated_vector])
         sentence_tensor = numpy.random.rand(batch_size, length_1, length_2, length_3, embedding_dim)
         attention_tensor = numpy.random.rand(batch_size, length_1, length_2, length_3)
         aggregated_tensor = model.predict([sentence_tensor, attention_tensor])
@@ -54,7 +53,7 @@ class TestWeightedSumLayer:
         matrix_input = Input(shape=(length_3, embedding_dim), dtype='float32')
         attention_input = Input(shape=(length_1, length_2, length_3,), dtype='float32')
         aggregated_vector = WeightedSum()([matrix_input, attention_input])
-        model = Model(input=[matrix_input, attention_input], output=[aggregated_vector])
+        model = Model(inputs=[matrix_input, attention_input], outputs=[aggregated_vector])
         sentence_tensor = numpy.random.rand(batch_size, length_3, embedding_dim)
         attention_tensor = numpy.random.rand(batch_size, length_1, length_2, length_3)
         aggregated_tensor = model.predict([sentence_tensor, attention_tensor])
@@ -66,7 +65,6 @@ class TestWeightedSumLayer:
                 numpy.testing.assert_almost_equal(aggregated_tensor[0, i, j], expected_tensor,
                                                   decimal=5)
 
-    @requires_tensorflow
     def test_call_handles_masking_properly(self):
         batch_size = 1
         vocab_size = 4
@@ -79,7 +77,7 @@ class TestWeightedSumLayer:
         sentence_embedding = embedding(sentence_input)
         attention_input = Input(shape=(sentence_length,), dtype='float32')
         aggregated_vector = WeightedSum()([sentence_embedding, attention_input])
-        model = Model(input=[sentence_input, attention_input], output=[aggregated_vector])
+        model = Model(inputs=[sentence_input, attention_input], outputs=[aggregated_vector])
 
         sentence_tensor = numpy.asarray([[1, 3, 2, 1, 0]])
         attention_tensor = numpy.asarray([[.3, .4, .1, 0, 1.2]])

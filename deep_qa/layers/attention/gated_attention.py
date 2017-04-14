@@ -1,12 +1,14 @@
 from keras import backend as K
-from keras.layers import Layer
+from overrides import overrides
+
+from ..masked_layer import MaskedLayer
 from ...common.checks import ConfigurationError
 from ...tensors.backend import switch
 
 GATING_FUNCTIONS = ["*", "+", "||"]
 
 
-class GatedAttention(Layer):
+class GatedAttention(MaskedLayer):
     r"""
     This layer implements the majority of the Gated Attention module described in
     `"Gated-Attention Readers for Text Comprehension" by Dhingra et. al 2016
@@ -56,35 +58,36 @@ class GatedAttention(Layer):
     To find out how we calculated equation 1, see the GatedAttentionReader model (roughly,
     a ``masked_batch_dot`` and a ``masked_softmax``)
     """
-    def __init__(self, **kwargs):
-        self.supports_masking = True
+    def __init__(self, gating_function="*", **kwargs):
         # We need to wait until below to actually handle this, because self.name gets set in
         # super.__init__.
         # allowed gating functions are "*" (multiply), "+" (sum), and "||" (concatenate)
-        self.gating_function = kwargs.pop('gating_function', "*")
+        self.gating_function = gating_function
         if self.gating_function not in GATING_FUNCTIONS:
             raise ConfigurationError("Invalid gating function "
                                      "{}, expected one of {}".format(self.gating_function,
                                                                      GATING_FUNCTIONS))
-
         super(GatedAttention, self).__init__(**kwargs)
 
+    @overrides
     def compute_mask(self, inputs, mask=None):
         # pylint: disable=unused-argument
         return mask[0]
 
-
-    def get_output_shape_for(self, input_shapes):
+    @overrides
+    def compute_output_shape(self, input_shapes):
         return (input_shapes[0][0], input_shapes[0][1], input_shapes[0][2])
 
+    @overrides
     def call(self, inputs, mask=None):
         # document_matrix is of shape (batch, document length, biGRU hidden length).
         # question_matrix is of shape (batch, question length, biGRU hidden length).
         # normalized_qd_attention is of shape (batch, document length, question length).
         document_matrix, question_matrix, normalized_qd_attention = inputs
-        document_mask = mask[0]
-        if document_mask is None:
+        if mask is None:
             document_mask = K.ones_like(document_matrix)[:, :, 0]
+        else:
+            document_mask = mask[0]
 
         # question_update is of shape (batch, document length, bigru hidden).
         question_update = K.batch_dot(normalized_qd_attention, question_matrix, axes=[2, 1])
@@ -98,7 +101,7 @@ class GatedAttention(Layer):
             # Apply the mask from the document to zero out things that should be masked.
             # The mask is of shape (batch, document length), so we tile it to
             # shape (batch, document length, biGRU hidden length*2)
-            tiled_mask = K.repeat_elements(K.expand_dims(document_mask, dim=2),
+            tiled_mask = K.repeat_elements(K.expand_dims(document_mask, axis=2),
                                            (2*K.int_shape(document_matrix)[2]), 2)
             masked_representation = switch(tiled_mask, unmasked_representation,
                                            K.zeros_like(unmasked_representation))
@@ -114,7 +117,7 @@ class GatedAttention(Layer):
         # Apply the mask from the document to zero out things that should be masked.
         # The mask is of shape (batch, document length), so we tile it to
         # shape (batch, document length, biGRU hidden length)
-        tiled_mask = K.repeat_elements(K.expand_dims(document_mask, dim=2),
+        tiled_mask = K.repeat_elements(K.expand_dims(document_mask, axis=2),
                                        K.int_shape(document_matrix)[2], 2)
         masked_representation = switch(tiled_mask, unmasked_representation, K.zeros_like(unmasked_representation))
 
@@ -124,3 +127,10 @@ class GatedAttention(Layer):
             raise ConfigurationError("Invalid gating function "
                                      "{}, expected one of {}".format(self.gating_function,
                                                                      GATING_FUNCTIONS))
+
+    @overrides
+    def get_config(self):
+        config = {'gating_function': self.gating_function}
+        base_config = super(GatedAttention, self).get_config()
+        config.update(base_config)
+        return config

@@ -9,29 +9,47 @@ ls $HOME/.cache/pip
 # conda-based environment instead
 deactivate
 
+# Add the miniconda bin directory to $PATH
+export PATH=/home/travis/miniconda3/bin:$PATH
+echo $PATH
+
 # Use the miniconda installer for setup of conda itself
 pushd .
 cd
 mkdir -p download
 cd download
-if [[ ! -d /home/travis/miniconda3 ]]
+if [[ ! -f /home/travis/miniconda3/bin/activate ]]
     then
     if [[ ! -f miniconda.sh ]]
         then
             wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
                 -O miniconda.sh
     fi
-    chmod +x miniconda.sh && ./miniconda.sh -b
-    export PATH=/home/travis/miniconda3/bin:$PATH
-    echo $PATH
+    chmod +x miniconda.sh && ./miniconda.sh -b -f
     conda update --yes conda
+    # If we are running pylint, use Python 3.5.2 due to
+    # bug in pylint. https://github.com/PyCQA/pylint/issues/1295
+    conda create -n testenv352 --yes python=3.5.2
     conda create -n testenv --yes python=3.5
 fi
 cd ..
 popd
 
-# create a python 3.5 environment
-source activate testenv
+# Activate the python environment we created.
+if [[ "$RUN_PYLINT" == "true" ]]; then
+    source activate testenv352
+else
+    source activate testenv
+fi
 
 # Install requirements via pip in our conda environment
-pip install -r requirements.txt
+pip install -U -r requirements.txt
+
+# List the packages to get their versions for debugging
+pip list
+
+# Install punkt tokenizer
+python -m nltk.downloader punkt
+
+# Install spacy data
+python -m spacy.en.download all

@@ -1,28 +1,32 @@
-from typing import Any, Dict
-
 from keras import backend as K
 
 from .word_alignment import WordAlignmentEntailment
 from ...tensors.backend import switch
 
+
 class MultipleChoiceTupleEntailment(WordAlignmentEntailment):
+    '''A kind of decomposable attention where the premise (or background) is in
+    the form of SVO triples, and entailment is computed by finding the answer
+    in a multiple choice setting that aligns best with the tuples that align
+    with the question. This happens in two steps:
+
+    (1) We use the _align function from WordAlignmentEntailment to find the
+        premise tuples whose SV, or VO pairs align best with the question.
+
+    (2) We then use the _align function again to find the answer that aligns
+        best with the unaligned part of the tuples, weighed by how much they
+        partially align with the question in step 1.
+
+    TODO(pradeep): Also match S with question, VO with answer, O with question
+    and SV with answer.
+
     '''
-    A kind of decomposable attention where the premise (or background) is in the form of SVO triples,
-    and entailment is computed by finding the answer in a multiple coice setting that aligns best
-    with the tuples that align with the question. This happens in two steps:
-    1) We use the _align function from WordAlignmentEntailment to find the premise tuples whose SV,
-        or VO pairs align best with the question.
-    2) We then use the _align function again to find the answer that aligns best with the
-        unaligned part of the tuples, weighed by how much they partially align with the question
-        in step 1.
-    TODO(pradeep): Also match S with question, VO with answer, O with question and SV with answer.
-    '''
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, **kwargs):
         self.tuple_size = None
         self.num_tuples = None
         self.num_options = None
         self.question_length = None
-        super(MultipleChoiceTupleEntailment, self).__init__(params)
+        super(MultipleChoiceTupleEntailment, self).__init__(**kwargs)
 
     def build(self, input_shape):
         #NOTE: This layer currently has no trainable parameters.
@@ -39,7 +43,7 @@ class MultipleChoiceTupleEntailment(WordAlignmentEntailment):
         self.num_options = answer_shape[1]
         self.input_dim = knowledge_shape[-1]
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         return (input_shape[0][0], self.num_options)
 
     def compute_mask(self, x, mask=None):

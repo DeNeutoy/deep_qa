@@ -1,11 +1,15 @@
-from keras import backend as K
-from keras.layers import Layer
+from copy import deepcopy
+from typing import Any, Dict
 
+from keras import backend as K
+from overrides import overrides
+
+from ..masked_layer import MaskedLayer
 from ...common.params import get_choice_with_default
 from ...tensors.similarity_functions import similarity_functions
 
 
-class MatrixAttention(Layer):
+class MatrixAttention(MaskedLayer):
     '''
     This ``Layer`` takes two matrices as input and returns a matrix of attentions.
 
@@ -29,24 +33,33 @@ class MatrixAttention(Layer):
 
     Output:
         - ``(batch_size, num_rows_1, num_rows_2)``, with mask of same shape
+
+    Parameters
+    ----------
+    similarity_function_params: Dict[str, Any], default={}
+        These parameters get passed to a similarity function (see
+        :mod:`deep_qa.tensors.similarity_functions` for more info on what's acceptable).  The
+        default similarity function with no parameters is a simple dot product.
     '''
-    def __init__(self, **kwargs):
-        self.supports_masking = True
-        # We need to wait until below to actually handle this, because self.name gets set in
-        # super.__init__.
-        similarity_function_params = kwargs.pop('similarity_function', {})
+    def __init__(self, similarity_function: Dict[str, Any]=None, **kwargs):
         super(MatrixAttention, self).__init__(**kwargs)
-        sim_function_choice = get_choice_with_default(similarity_function_params,
+        self.similarity_function_params = deepcopy(similarity_function)
+        if similarity_function is None:
+            similarity_function = {}
+        sim_function_choice = get_choice_with_default(similarity_function,
                                                       'type',
                                                       list(similarity_functions.keys()))
-        similarity_function_params['name'] = self.name + '_similarity_function'
-        self.similarity_function = similarity_functions[sim_function_choice](**similarity_function_params)
+        similarity_function['name'] = self.name + '_similarity_function'
+        self.similarity_function = similarity_functions[sim_function_choice](**similarity_function)
 
+    @overrides
     def build(self, input_shape):
-        similarity_function_shape = self.get_output_shape_for(input_shape) + (input_shape[0][-1],)
-        self.trainable_weights = self.similarity_function.initialize_weights(similarity_function_shape)
+        tensor_1_dim = input_shape[0][-1]
+        tensor_2_dim = input_shape[1][-1]
+        self.trainable_weights = self.similarity_function.initialize_weights(tensor_1_dim, tensor_2_dim)
         super(MatrixAttention, self).build(input_shape)
 
+    @overrides
     def compute_mask(self, inputs, mask=None):
         # pylint: disable=unused-argument
         mask_1, mask_2 = mask
@@ -57,21 +70,39 @@ class MatrixAttention(Layer):
         if mask_2 is None:
             mask_2 = K.ones_like(K.sum(inputs[1], axis=-1))
         # Theano can't do batch_dot on ints, so we need to cast to float and then back.
-        mask_1 = K.cast(K.expand_dims(mask_1, dim=2), 'float32')
-        mask_2 = K.cast(K.expand_dims(mask_2, dim=1), 'float32')
+        mask_1 = K.cast(K.expand_dims(mask_1, axis=2), 'float32')
+        mask_2 = K.cast(K.expand_dims(mask_2, axis=1), 'float32')
         return K.cast(K.batch_dot(mask_1, mask_2), 'uint8')
 
-    def get_output_shape_for(self, input_shape):
+    @overrides
+    def compute_output_shape(self, input_shape):
         return (input_shape[0][0], input_shape[0][1], input_shape[1][1])
 
+    @overrides
     def call(self, inputs, mask=None):
         """
         NOTE: This does not work if ``num_rows_1`` or ``num_rows_2`` is ``None``!  I tried to get
         it to work, but ``K.dot()`` breaks.
         """
         matrix_1, matrix_2 = inputs
-        num_rows_1 = K.int_shape(matrix_1)[1]
-        num_rows_2 = K.int_shape(matrix_2)[1]
-        tiled_matrix_1 = K.repeat_elements(K.expand_dims(matrix_1, dim=2), num_rows_2, axis=2)
-        tiled_matrix_2 = K.repeat_elements(K.expand_dims(matrix_2, dim=1), num_rows_1, axis=1)
+        matrix_1_shape = K.int_shape(matrix_1)
+        matrix_2_shape = K.int_shape(matrix_2)
+        num_rows_1 = matrix_1_shape[1]
+        num_rows_2 = matrix_2_shape[1]
+        tiled_matrix_1 = K.repeat_elements(K.expand_dims(matrix_1, axis=2), num_rows_2, axis=2)
+        tiled_matrix_2 = K.repeat_elements(K.expand_dims(matrix_2, axis=1), num_rows_1, axis=1)
+
+        # We need to be able to access K.int_shape() in compute_similarity() below, but in theano,
+        # calling a backend function makes it so you can't use K.int_shape() anymore.  Setting
+        # tensor._keras_shape here fixes that.
+        # pylint: disable=protected-access
+        tiled_matrix_1._keras_shape = matrix_1_shape[:2] + (num_rows_2,) + matrix_1_shape[2:]
+        tiled_matrix_2._keras_shape = matrix_2_shape[:1] + (num_rows_1,) + matrix_2_shape[1:]
         return self.similarity_function.compute_similarity(tiled_matrix_1, tiled_matrix_2)
+
+    @overrides
+    def get_config(self):
+        base_config = super(MatrixAttention, self).get_config()
+        config = {'similarity_function': self.similarity_function_params}
+        config.update(base_config)
+        return config

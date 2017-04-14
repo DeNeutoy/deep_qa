@@ -92,11 +92,11 @@ class IndexedTupleInstance(IndexedInstance):
     @overrides
     def get_lengths(self) -> Dict[str, int]:
         # We care only about the longest slot here because all slots will be padded to the same length.
-        return {'word_sequence_length': max([len(indices) for indices in self.word_indices]),
+        return {'num_sentence_words': max([len(indices) for indices in self.word_indices]),
                 'num_slots': len(self.word_indices)}
 
     @overrides
-    def pad(self, max_lengths: Dict[str, int]):
+    def pad(self, padding_lengths: Dict[str, int]):
         """
         Pads (or truncates) all slots in self.word_indices to the same length. Additionally,
         adjusts the number of slots in the tuple to the desired number: if there are fewer
@@ -106,7 +106,7 @@ class IndexedTupleInstance(IndexedInstance):
         since truncating is done from the left, the earlier object slots ar more likely to be
         lost.
         """
-        desired_num_slots = max_lengths['num_slots']
+        desired_num_slots = padding_lengths['num_slots']
         if len(self.word_indices) > desired_num_slots:
             # We concatenate the indices from the slots at the end to make word_indices the right
             # length.
@@ -118,7 +118,7 @@ class IndexedTupleInstance(IndexedInstance):
         elif len(self.word_indices) < desired_num_slots:
             additional_slots = [[] for _ in range(desired_num_slots - len(self.word_indices))]
             self.word_indices += additional_slots
-        self.word_indices = [self.pad_word_sequence(indices, max_lengths) for
+        self.word_indices = [self.pad_word_sequence(indices, padding_lengths) for
                              indices in self.word_indices]
 
     @overrides

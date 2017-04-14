@@ -1,56 +1,62 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from overrides import overrides
+from keras.layers import Layer
 
 from .tokenizer import Tokenizer
-from .word_splitter import word_splitters
+from .word_processor import WordProcessor
 from ..data_indexer import DataIndexer
-from ...common.params import get_choice_with_default
 
 
 class WordTokenizer(Tokenizer):
     """
-    A WordTokenizer splits strings into word tokens.
+    A ``WordTokenizer`` splits strings into word tokens.
 
-    There are several ways that you can split a string into words, so we rely on a WordSplitter to
-    do that work for us.  What we're calling a WordSplitter is typically called a "tokenizer" in
-    NLP, but we're using WordSplitter here because for us "tokenization" is about whether you want
-    words, characters, or both.
+    There are several ways that you can split a string into words, so we rely on a
+    ``WordProcessor`` to do that work for us.  Note that we're using the word "tokenizer" here for
+    something different than is typical in NLP - we're referring here to how strings are
+    represented as numpy arrays, not the linguistic notion of splitting sentences into tokens.
+    Those things are handled in the ``WordProcessor``, which is a common dependency in several
+    ``Tokenizers``.
+
+    Parameters
+    ----------
+    processor: Dict[str, Any], default={}
+        Contains parameters for processing text strings into word tokens, including, e.g.,
+        splitting, stemming, and filtering words.  See ``WordProcessor`` for a complete description
+        of available parameters.
     """
     def __init__(self, params: Dict[str, Any]):
-        word_splitter_choice = get_choice_with_default(params, 'word_splitter', list(word_splitters.keys()))
-        self.word_splitter = word_splitters[word_splitter_choice]()
+        self.word_processor = WordProcessor(params.pop('processor', {}))
         super(WordTokenizer, self).__init__(params)
 
     @overrides
     def tokenize(self, text: str) -> List[str]:
-        return self.word_splitter.split_words(text)
+        return self.word_processor.get_tokens(text)
 
     @overrides
     def get_words_for_indexer(self, text: str) -> Dict[str, List[str]]:
-        return {'words': self.word_splitter.split_words(text)}
+        return {'words': self.tokenize(text)}
 
     @overrides
-    def index_text(self,
-                   text: str,
-                   data_indexer: DataIndexer) -> List:
-        return [data_indexer.get_word_index(word, namespace='words')
-                for word in self.word_splitter.split_words(text)]
+    def index_text(self, text: str, data_indexer: DataIndexer) -> List:
+        return [data_indexer.get_word_index(word, namespace='words') for word in self.tokenize(text)]
 
     @overrides
     def embed_input(self,
-                    input_layer: 'keras.layers.Layer',
-                    text_trainer: 'TextTrainer',
+                    input_layer: Layer,
+                    embed_function: Callable[[Layer, str, str], Layer],
+                    text_trainer,
                     embedding_name: str="embedding"):
         # pylint: disable=protected-access
-        return text_trainer._get_embedded_input(input_layer,
-                                                embedding_name='word_' + embedding_name,
-                                                vocab_name='words')
+        return embed_function(input_layer,
+                              embedding_name='word_' + embedding_name,
+                              vocab_name='words')
 
     @overrides
     def get_sentence_shape(self, sentence_length: int, word_length: int) -> Tuple[int]:
         return (sentence_length,)
 
     @overrides
-    def get_max_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
-        return {'word_sequence_length': sentence_length}
+    def get_padding_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
+        return {'num_sentence_words': sentence_length}

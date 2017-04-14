@@ -10,22 +10,19 @@ representations.
 TODO(pradeep): Make this work with the memory network eventually.
 '''
 
-from typing import Any, Dict
-
 from keras import backend as K
-from keras.layers import Layer
 
+from ..masked_layer import MaskedLayer
 from ...tensors.masked_operations import masked_softmax, masked_batch_dot
 from ...tensors.backend import last_dim_flatten
 
-class WordAlignmentEntailment(Layer):
+class WordAlignmentEntailment(MaskedLayer):  # pylint: disable=abstract-method
     '''
     This is an abstract class for word alignment entailment. It defines an _align function.
     '''
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, **kwargs):
         self.input_dim = None
-        self.supports_masking = True
-        super(WordAlignmentEntailment, self).__init__(**params)
+        super(WordAlignmentEntailment, self).__init__(**kwargs)
 
     @staticmethod
     def _align(source_embedding, target_embedding, source_mask, target_mask, normalize_alignment=True):
@@ -53,7 +50,7 @@ class WordAlignmentEntailment(Layer):
                 float_source_mask = K.cast(source_mask, 'float32')
                 float_target_mask = K.cast(target_mask, 'float32')
                 # (batch_size, source_length, target_length)
-                s2t_mask = K.expand_dims(float_source_mask, dim=-1) * K.expand_dims(float_target_mask, dim=1)
+                s2t_mask = K.expand_dims(float_source_mask, axis=-1) * K.expand_dims(float_target_mask, axis=1)
                 flattened_s2t_mask = last_dim_flatten(s2t_mask)
                 flattened_s2t_attention = masked_softmax(flattened_products_with_source, flattened_s2t_mask)
             else:

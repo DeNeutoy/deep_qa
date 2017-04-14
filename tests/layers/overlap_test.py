@@ -1,13 +1,14 @@
+# pylint: disable=no-self-use
 import numpy
 from numpy.testing import assert_almost_equal
 import keras.backend as K
 from keras.layers import Input
 from keras.models import Model
+
 from deep_qa.layers.overlap import Overlap
 
 
-class TestOverlap():
-    # pylint: disable=no-self-use
+class TestOverlap:
     def test_batched_case(self):
         tensor_a_len = 5
         tensor_b_len = 4
@@ -46,5 +47,5 @@ class TestOverlap():
                                         [0.0, 1.0], [1.0, 0.0], [1.0, 0.0]]])
 
         # Testing the masked general batched case
-        result = K.eval(Overlap()([tensor_a, tensor_b], [mask_a, mask_b]))
+        result = K.eval(Overlap()([tensor_a, tensor_b], mask=[mask_a, mask_b]))
         assert_almost_equal(result, expected_output)

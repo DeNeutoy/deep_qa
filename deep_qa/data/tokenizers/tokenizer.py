@@ -1,5 +1,6 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
+from keras.layers import Layer
 from ..data_indexer import DataIndexer
 from ...common.params import ConfigurationError
 
@@ -18,6 +19,13 @@ class Tokenizer:
         # dict as an argument.
         if len(params.keys()) != 0:
             raise ConfigurationError("You passed unrecognized parameters: " + str(params))
+
+    def get_custom_objects(self) -> Dict[str, 'Layer']:  # pylint: disable=no-self-use
+        """
+        If you use any custom ``Layers`` in your ``embed_input`` method, you need to return them
+        here, so that the ``TextTrainer`` can correctly load models.
+        """
+        return {}
 
     def tokenize(self, text: str) -> List[str]:
         """
@@ -50,20 +58,33 @@ class Tokenizer:
         raise NotImplementedError
 
     def embed_input(self,
-                    input_layer: 'keras.layers.Layer',
-                    text_trainer: 'TextTrainer',
+                    input_layer: Layer,
+                    embed_function: Callable[[Layer, str, str], Layer],
+                    text_trainer,
                     embedding_name: str="embedding"):
         """
-        Applies embedding layers to the input_layer.  See TextTrainer._embed_input for a more
-        detailed comment on what this method does.
+        Applies embedding layers to the input_layer.  See :func:`TextTrainer._embed_input
+        <deep_qa.training.text_trainer.TextTrainer._embed_input>` for a more detailed comment on
+        what this method does.
 
-        - `input_layer` should be a Keras Input() layer.
-        - `text_trainer` is a TextTrainer instance, so we can access methods on it like
-          `text_trainer._get_embedded_input`, which actually applies an embedding layer, projection
-          layers, and dropout to the input layer.  Simple TextEncoders will basically just call
-          this function and be done.  More complicated TextEncoders might need additional logic on
-          top of just calling `text_trainer._get_embedded_input`.
-        - `embedding_name` allows for different embedding matrices.
+        Parameters
+        ----------
+        input_layer: Keras ``Input()`` layer
+            The layer to embed.
+
+        embed_function: Callable[['Layer', str, str], 'Tensor']
+            This should be the __get_embedded_input method from your instantiated ``TextTrainer``.
+            This function actually applies an ``Embedding`` layer (and maybe also a projection and
+            dropout) to the input layer.
+
+        text_trainer: TextTrainer
+            Simple ``Tokenizers`` will just need to use the ``embed_function`` that gets passed as
+            a parameter here, but complex ``Tokenizers`` might need more than just an embedding
+            function.  So that you can get an encoder or other things from the ``TextTrainer`` here
+            if you need them, we take this object as a parameter.
+
+        embedding_name: str, optional (default="embedding")
+            The name to assign the embedding layer, which allows for different embedding matrices.
         """
         raise NotImplementedError
 
@@ -76,7 +97,7 @@ class Tokenizer:
         """
         raise NotImplementedError
 
-    def get_max_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
+    def get_padding_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
         """
         When dealing with padding in TextTrainer, TextInstances need to know what to pad and how
         much.  This function takes a potential max sentence length and word length, and returns a
@@ -98,6 +119,10 @@ class Tokenizer:
         characters into the sentence as the given character span.  We try to handle a bit of error
         in the tokenization by checking `slack` tokens in either direction from that initial
         estimate.
+
+        The returned ``(begin, end)`` indices are `inclusive` for ``begin``, and `exclusive` for
+        ``end``.  So, for example, ``(2, 2)`` is an empty span, ``(2, 3)`` is the one-word span
+        beginning at token index 2, and so on.
         """
         # First we'll tokenize the span and the sentence, so we can count tokens and check for
         # matches.
@@ -112,14 +137,14 @@ class Tokenizer:
             index += 1
         # index is now the span start index.  Is it a match?
         if self._spans_match(tokenized_sentence, tokenized_span, index):
-            return (index, index + len(tokenized_span) - 1)
+            return (index, index + len(tokenized_span))
         for i in range(1, slack + 1):
             if self._spans_match(tokenized_sentence, tokenized_span, index + i):
-                return (index + i, index + i+ len(tokenized_span) - 1)
+                return (index + i, index + i+ len(tokenized_span))
             if self._spans_match(tokenized_sentence, tokenized_span, index - i):
-                return (index - i, index - i + len(tokenized_span) - 1)
+                return (index - i, index - i + len(tokenized_span))
         # No match; we'll just return our best guess.
-        return (index, index + len(tokenized_span) - 1)
+        return (index, index + len(tokenized_span))
 
     @staticmethod
     def _spans_match(sentence_tokens: List[str], span_tokens: List[str], index: int) -> bool:

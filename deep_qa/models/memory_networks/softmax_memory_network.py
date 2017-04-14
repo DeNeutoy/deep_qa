@@ -39,16 +39,17 @@ class SoftmaxMemoryNetwork(MemoryNetwork):
         return BabiInstance
 
     @overrides
-    def _get_max_lengths(self) -> Dict[str, int]:
-        max_lengths = super(SoftmaxMemoryNetwork, self)._get_max_lengths()
-        max_lengths['num_options'] = self.num_options
-        max_lengths['answer_length'] = 1  # because BabiInstance inherits from QuestionAnswerInstance...
-        return max_lengths
+    def _get_padding_lengths(self) -> Dict[str, int]:
+        padding_lengths = super(SoftmaxMemoryNetwork, self)._get_padding_lengths()
+        padding_lengths['num_options'] = self.num_options
+        padding_lengths['answer_length'] = 1  # because BabiInstance inherits from QuestionAnswerInstance...
+        return padding_lengths
 
     @overrides
-    def _set_max_lengths(self, max_lengths: Dict[str, int]):
-        super(SoftmaxMemoryNetwork, self)._set_max_lengths(max_lengths)
-        self.num_options = max_lengths['num_options']
+    def _set_padding_lengths(self, padding_lengths: Dict[str, int]):
+        super(SoftmaxMemoryNetwork, self)._set_padding_lengths(padding_lengths)
+        if self.num_options is None:
+            self.num_options = padding_lengths['num_options']
 
     @overrides
     def _build_model(self):
@@ -112,7 +113,7 @@ class SoftmaxMemoryNetwork(MemoryNetwork):
             memory_updater = self._get_memory_updater(i)
             current_memory = memory_updater(updater_input)
 
-        final_softmax = Dense(output_dim=self.num_options, activation='softmax', name='final_softmax')
+        final_softmax = Dense(units=self.num_options, activation='softmax', name='final_softmax')
         output = final_softmax(current_memory)
 
         input_layers = [question_input, knowledge_input]

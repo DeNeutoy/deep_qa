@@ -1,4 +1,9 @@
 from collections import defaultdict
+import logging
+
+import tqdm
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class DataIndexer:
@@ -22,24 +27,44 @@ class DataIndexer:
         self._oov_token = "@@UNKOWN@@"
         self.word_indices = defaultdict(lambda: {self._padding_token: 0, self._oov_token: 1})
         self.reverse_word_indices = defaultdict(lambda: {0: self._padding_token, 1: self._oov_token})
+        self._finalized = False
 
-    def fit_word_dictionary(self, dataset: 'TextDataset', min_count: int=1):
+    def finalize(self):
+        logger.info("Finalizing data indexer")
+        self._finalized = True
+
+    def fit_word_dictionary(self, dataset, min_count: int=1):
         """
-        Given a Dataset, this method decides which words are given an index, and which ones are
+        Given a ``Dataset``, this method decides which words are given an index, and which ones are
         mapped to an OOV token (in this case "UNK").  This method must be called before any dataset
-        is indexed with this DataIndexer.  If you don't first fit the word dictionary, you'll
+        is indexed with this ``DataIndexer``.  If you don't first fit the word dictionary, you'll
         basically map every token onto "UNK".
 
-        We call instance.words() for each instance in the dataset, and then keep all words that
-        appear at least min_count times.
+        We call ``instance.words()`` for each instance in the dataset, and then keep all words that
+        appear at least ``min_count`` times.
+
+        Parameters
+        ----------
+        dataset: ``TextDataset``
+            The dataset to index.
+
+        min_count: int, optional (default=1)
+            The minimum number of occurences a word must have in the dataset
+            in order to be assigned an index.
         """
+        logger.info("Fitting word dictionary with min count of %d, finalized is %s",
+                    min_count, self._finalized)
+        if self._finalized:
+            logger.warning("Trying to fit a finalized DataIndexer.  This is a no-op.  Did you "
+                           "really want to do this?")
+            return
         namespace_word_counts = defaultdict(lambda: defaultdict(int))
-        for instance in dataset.instances:
+        for instance in tqdm.tqdm(dataset.instances):
             namespace_dict = instance.words()
             for namespace in namespace_dict:
                 for word in namespace_dict[namespace]:
                     namespace_word_counts[namespace][word] += 1
-        for namespace in namespace_word_counts:
+        for namespace in tqdm.tqdm(namespace_word_counts):
             for word, count in namespace_word_counts[namespace].items():
                 if count >= min_count:
                     self.add_word_to_index(word, namespace)
@@ -49,6 +74,10 @@ class DataIndexer:
         Adds `word` to the index, if it is not already present.  Either way, we return the index of
         the word.
         """
+        if self._finalized:
+            logger.warning("Trying to add a word to a finalized DataIndexer.  This is a no-op.  "
+                           "Did you really want to do this?")
+            return self.word_indices[namespace].get(word, -1)
         if word not in self.word_indices[namespace]:
             index = len(self.word_indices[namespace])
             self.word_indices[namespace][word] = index

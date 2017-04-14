@@ -1,21 +1,21 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from overrides import overrides
 from keras import backend as K
-from keras.layers import merge
+from keras.layers import Concatenate, Layer
 
 from .tokenizer import Tokenizer
-from .word_splitter import word_splitters
+from .word_processor import WordProcessor
 from ..data_indexer import DataIndexer
-from ...common.params import get_choice_with_default
 from ...layers.vector_matrix_split import VectorMatrixSplit
-from ...layers.wrappers import FixedTimeDistributed
+from ...layers.wrappers.encoder_wrapper import EncoderWrapper
 
 class WordAndCharacterTokenizer(Tokenizer):
     """
     A ``WordAndCharacterTokenizer`` first splits strings into words, then splits those words into
     characters, and returns a representation that contains `both` a word index and a sequence of
-    character indices for each word.
+    character indices for each word.  See the documention for ``WordTokenizer`` for a note about
+    naming, and the typical notion of "tokenization" in NLP.
 
     Notes
     -----
@@ -27,24 +27,21 @@ class WordAndCharacterTokenizer(Tokenizer):
     ``encoder`` dict, we'll create a new encoder using the ``"default"`` parameters.
     """
     def __init__(self, params: Dict[str, Any]):
-        word_splitter_choice = get_choice_with_default(params, 'word_splitter', list(word_splitters.keys()))
-        self.word_splitter = word_splitters[word_splitter_choice]()
+        self.word_processor = WordProcessor(params.pop('processor', {}))
         super(WordAndCharacterTokenizer, self).__init__(params)
 
     @overrides
     def tokenize(self, text: str) -> List[str]:
-        return self.word_splitter.split_words(text)
+        return self.word_processor.get_tokens(text)
 
     @overrides
     def get_words_for_indexer(self, text: str) -> Dict[str, List[str]]:
         words = self.tokenize(text)
-        characters = [char for char in text]
+        characters = [char for word in words for char in word]
         return {'words': words, 'characters': characters}
 
     @overrides
-    def index_text(self,
-                   text: str,
-                   data_indexer: DataIndexer) -> List:
+    def index_text(self, text: str, data_indexer: DataIndexer) -> List:
         words = self.tokenize(text)
         arrays = []
         for word in words:
@@ -57,8 +54,9 @@ class WordAndCharacterTokenizer(Tokenizer):
 
     @overrides
     def embed_input(self,
-                    input_layer: 'keras.layers.Layer',
-                    text_trainer: 'TextTrainer',
+                    input_layer: Layer,
+                    embed_function: Callable[[Layer, str, str], Layer],
+                    text_trainer,
                     embedding_name: str="embedding"):
         """
         A combined word-and-characters representation requires some fancy footwork to do the
@@ -75,54 +73,44 @@ class WordAndCharacterTokenizer(Tokenizer):
         (..., sentence_length, embedding_dim * 2).
         """
         # pylint: disable=protected-access
-        # So that we end up with even embeddings across different inputs, we'll use half the
-        # `embedding_size` in the given `TextTrainer`.
-        embedding_size = int(text_trainer.embedding_size / 2)
         # This is happening before any masking is done, so we don't need to worry about the
         # mask_split_axis argument to VectorMatrixSplit.
         words, characters = VectorMatrixSplit(split_axis=-1)(input_layer)
-        word_embedding = text_trainer._get_embedded_input(words,
-                                                          embedding_size=embedding_size,
-                                                          embedding_name='word_' + embedding_name,
-                                                          vocab_name='words')
-        character_embedding = text_trainer._get_embedded_input(characters,
-                                                               embedding_size=embedding_size,
-                                                               embedding_name='character_' + embedding_name,
-                                                               vocab_name='characters')
+        word_embedding = embed_function(words,
+                                        embedding_name='word_' + embedding_name,
+                                        vocab_name='words')
+        character_embedding = embed_function(characters,
+                                             embedding_name='character_' + embedding_name,
+                                             vocab_name='characters')
 
         # A note about masking here: we care about the character masks when encoding a character
         # sequence, so we need the mask to be passed to the character encoder correctly.  However,
         # we _don't_ care here about whether the whole word will be masked, as the word_embedding
-        # will carry that information, so the output mask returned by the TimeDistributed layer
-        # here will be ignored.
-        word_encoder = FixedTimeDistributed(
+        # will carry that information.  Because of the way `Concatenate` handles masks, if you've
+        # done something crazy where you have a word index but your character indices are all zero,
+        # you will get a 0 in the mask for that word at the end of this.  But assuming you're using
+        # this correctly, you should only get a 0 in the character-level mask in the same places
+        # that you have 0s in the word-level mask, so `Concatenate` will do the right thing.
+        word_encoder = EncoderWrapper(
                 text_trainer._get_encoder(name="word", fallback_behavior="use default params"))
         # We might need to TimeDistribute this again, if our input has ndim higher than 3.
         for _ in range(3, K.ndim(characters)):
-            word_encoder = FixedTimeDistributed(word_encoder, name="timedist_" + word_encoder.name)
+            word_encoder = EncoderWrapper(word_encoder, name="timedist_" + word_encoder.name)
         word_encoding = word_encoder(character_embedding)
 
-        merge_mode = lambda inputs: K.concatenate(inputs, axis=-1)
-        def merge_shape(input_shapes):
-            output_shape = list(input_shapes[0])
-            output_shape[-1] += input_shapes[1][-1]
-            return tuple(output_shape)
-        merge_mask = lambda masks: masks[0]
-
-        # If you're embedding multiple inputs in your model, we need the final merge layer here to
-        # have a unique name each time.  In order to get a unique name, we use the name of the
-        # input layer.  Except sometimes Keras adds funny things to the end of the input layer, so
+        # If you're embedding multiple inputs in your model, we need the final concatenation here
+        # to have a unique name each time.  In order to get a unique name, we use the name of the
+        # input layer.  Except sometimes Keras adds funny things to the ends of the input layer, so
         # we'll strip those off.
         input_name = input_layer.name
+        if '/' in input_name:
+            input_name = input_name.rsplit('/', 1)[1]
         if ':' in input_name:
             input_name = input_name.split(':')[0]
         if input_name.split('_')[-1].isdigit():
             input_name = '_'.join(input_name.split('_')[:-1])
-        final_embedded_input = merge([word_embedding, word_encoding],
-                                     mode=merge_mode,
-                                     output_shape=merge_shape,
-                                     output_mask=merge_mask,
-                                     name='combined_word_embedding_for_' + input_name)
+        name = 'combined_word_embedding_for_' + input_name
+        final_embedded_input = Concatenate(name=name)([word_embedding, word_encoding])
         return final_embedded_input
 
     @overrides
@@ -130,5 +118,12 @@ class WordAndCharacterTokenizer(Tokenizer):
         return (sentence_length, word_length)
 
     @overrides
-    def get_max_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
-        return {'word_sequence_length': sentence_length, 'word_character_length': word_length}
+    def get_padding_lengths(self, sentence_length: int, word_length: int) -> Dict[str, int]:
+        return {'num_sentence_words': sentence_length, 'num_word_characters': word_length}
+
+    @overrides
+    def get_custom_objects(self) -> Dict[str, Any]:
+        return {
+                'EncoderWrapper': EncoderWrapper,
+                'VectorMatrixSplit': VectorMatrixSplit,
+                }

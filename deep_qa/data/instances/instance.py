@@ -17,6 +17,7 @@ all of the concrete ``Instance`` types will have both a ``TextInstance`` and a
 corresponding ``IndexedInstance``, which you can see in the individual files
 for each ``Instance`` type.
 """
+import itertools
 from typing import Any, Callable, Dict, List
 
 from ..tokenizers import tokenizers
@@ -197,7 +198,7 @@ class IndexedInstance(Instance):
         """
         raise NotImplementedError
 
-    def pad(self, max_lengths: Dict[str, int]):
+    def pad(self, padding_lengths: Dict[str, int]):
         """
         Add zero-padding to make each data example of equal length for use
         in the neural network.
@@ -206,7 +207,7 @@ class IndexedInstance(Instance):
 
         Parameters
         ----------
-        max_lengths: Dictionary of {str:int}
+        padding_lengths: Dictionary of {str:int}
             In this dictionary, each ``str`` refers to a type of token
             (e.g. ``max_words_question``), and the corresponding ``int`` is
             the value. This dictionary must have the same dimension as was
@@ -235,16 +236,16 @@ class IndexedInstance(Instance):
         Because ``TextEncoders`` can return complex data structures, we might
         actually have several things to pad for a single word sequence. We
         check for that and handle it in a single spot here. We return a
-        dictionary containing 'word_sequence_length', which is the number of
+        dictionary containing 'num_sentence_words', which is the number of
         words in word_indices. If the word representations also contain
         characters, the dictionary additionally contains a
-        'word_character_length' key, with a value corresponding to the longest
+        'num_word_characters' key, with a value corresponding to the longest
         word in the sequence.
         """
-        lengths = {'word_sequence_length': len(word_indices)}
+        lengths = {'num_sentence_words': len(word_indices)}
         if len(word_indices) > 0 and not isinstance(word_indices[0], int):
             if isinstance(word_indices[0], list):
-                lengths['word_character_length'] = max([len(word) for word in word_indices])
+                lengths['num_word_characters'] = max([len(word) for word in word_indices])
             # There might someday be other cases we're missing here, but we'll punt for now.
         return lengths
 
@@ -285,15 +286,30 @@ class IndexedInstance(Instance):
         direction, you can.
         """
         default_value = lambda: 0
-        if 'word_character_length' in lengths:
+        if 'num_word_characters' in lengths:
             default_value = lambda: []
 
         padded_word_sequence = IndexedInstance.pad_sequence_to_length(
-                word_sequence, lengths['word_sequence_length'], default_value, truncate_from_right)
-        if 'word_character_length' in lengths:
-            padded_word_sequence = [IndexedInstance.pad_sequence_to_length(
-                    word, lengths['word_character_length'], truncate_from_right=False)
-                                    for word in padded_word_sequence]
+                word_sequence, lengths['num_sentence_words'], default_value, truncate_from_right)
+        if 'num_word_characters' in lengths:
+            desired_length = lengths['num_word_characters']
+            longest_word = max(padded_word_sequence, key=len)
+            if desired_length > len(longest_word):
+                # since we want to pad to greater than the longest word, we add a
+                # "dummy word" to get the speed of itertools.zip_longest
+                padded_word_sequence.append([0]*desired_length)
+            # pad the list of lists to the longest sublist, appending 0's
+            words_padded_to_longest = list(zip(*itertools.zip_longest(*padded_word_sequence,
+                                                                      fillvalue=0)))
+            if desired_length > len(longest_word):
+                # now we remove the "dummy word" if we appended one.
+                words_padded_to_longest.pop()
+
+            # now we need to truncate all of them to our desired length.
+            # since truncate_from_right is always False, we chop off starting from
+            # the right.
+            padded_word_sequence = [list(word[:desired_length])
+                                    for word in words_padded_to_longest]
         return padded_word_sequence
 
     @staticmethod
@@ -334,14 +350,20 @@ class IndexedInstance(Instance):
         much of the question set up. If you want to truncate from the other
         direction, you can.
         """
-
-        padded_sequence = []
-        for _ in range(desired_length):
-            padded_sequence.append(default_value())
-        sequence_length = min(len(sequence), desired_length)
-        if sequence_length != 0:
+        if truncate_from_right:
+            truncated = sequence[-desired_length:]
+        else:
+            truncated = sequence[:desired_length]
+        if len(truncated) < desired_length:
+            # If the length of the truncated sequence is less than the desired
+            # length, we need to pad.
+            padding_sequence = [default_value()] * (desired_length - len(truncated))
             if truncate_from_right:
-                padded_sequence[-sequence_length:] = sequence[-sequence_length:]
+                # When we truncate from the right, we add zeroes to the front.
+                padding_sequence.extend(truncated)
+                return padding_sequence
             else:
-                padded_sequence[:sequence_length] = sequence[:sequence_length]
-        return padded_sequence
+                # When we do not truncate from the right, we add zeroes to the end.
+                truncated.extend(padding_sequence)
+                return truncated
+        return truncated

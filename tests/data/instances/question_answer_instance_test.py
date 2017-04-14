@@ -1,16 +1,15 @@
 # pylint: disable=no-self-use,invalid-name
-
 from typing import List
-from unittest import TestCase
 
 import numpy
 
 from deep_qa.data.data_indexer import DataIndexer
 from deep_qa.data.instances.question_answer_instance import IndexedQuestionAnswerInstance
 from deep_qa.data.instances.question_answer_instance import QuestionAnswerInstance
+from ...common.test_case import DeepQaTestCase
 
 
-class TestQuestionAnswerInstance(TestCase):
+class TestQuestionAnswerInstance(DeepQaTestCase):
     def instance_to_line(self, question: str, answers: List[str], label: int, index=None):
         line = ''
         if index is not None:
@@ -62,28 +61,29 @@ class TestQuestionAnswerInstance(TestCase):
         assert indexed_instance.option_indices[1] == [oov_index, oov_index, d_index]
 
 
-class TestIndexedQuestionAnswerInstance(TestCase):
+class TestIndexedQuestionAnswerInstance(DeepQaTestCase):
     def setUp(self):
+        super(TestIndexedQuestionAnswerInstance, self).setUp()
         self.instance = IndexedQuestionAnswerInstance([1, 2, 3],
                                                       [[2, 3], [4], [5, 6]],
                                                       1)
 
     def test_get_lengths_returns_three_correct_lengths(self):
         assert self.instance.get_lengths() == {
-                'word_sequence_length': 3,
+                'num_sentence_words': 3,
                 'answer_length': 2,
                 'num_options': 3
                 }
 
     def test_pad_calls_pad_on_all_options(self):
-        self.instance.pad({'word_sequence_length': 2, 'answer_length': 2, 'num_options': 3})
+        self.instance.pad({'num_sentence_words': 2, 'answer_length': 2, 'num_options': 3})
         assert self.instance.question_indices == [2, 3]
         assert self.instance.option_indices[0] == [2, 3]
         assert self.instance.option_indices[1] == [0, 4]
         assert self.instance.option_indices[2] == [5, 6]
 
     def test_pad_adds_empty_options_when_necessary(self):
-        self.instance.pad({'word_sequence_length': 1, 'answer_length': 1, 'num_options': 4})
+        self.instance.pad({'num_sentence_words': 1, 'answer_length': 1, 'num_options': 4})
         assert self.instance.question_indices == [3]
         assert self.instance.option_indices[0] == [3]
         assert self.instance.option_indices[1] == [4]
@@ -92,13 +92,13 @@ class TestIndexedQuestionAnswerInstance(TestCase):
         assert len(self.instance.option_indices) == 4
 
     def test_pad_removes_options_when_necessary(self):
-        self.instance.pad({'word_sequence_length': 1, 'answer_length': 1, 'num_options': 1})
+        self.instance.pad({'num_sentence_words': 1, 'answer_length': 1, 'num_options': 1})
         assert self.instance.question_indices == [3]
         assert self.instance.option_indices[0] == [3]
         assert len(self.instance.option_indices) == 1
 
     def test_as_training_data_produces_correct_numpy_arrays(self):
-        self.instance.pad({'word_sequence_length': 3, 'answer_length': 2, 'num_options': 3})
+        self.instance.pad({'num_sentence_words': 3, 'answer_length': 2, 'num_options': 3})
         inputs, label = self.instance.as_training_data()
         assert numpy.all(label == numpy.asarray([0, 1, 0]))
         assert numpy.all(inputs[0] == numpy.asarray([1, 2, 3]))

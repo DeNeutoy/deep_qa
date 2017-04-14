@@ -46,7 +46,7 @@ class TrueFalseModel(TextTrainer):
 
         # Step 3: Find p(true | proposition) by passing the outputs from LSTM through an MLP with
         # ReLU layers.
-        projection_layer = Dense(int(self.embedding_size/2), activation='relu', name='projector')
+        projection_layer = Dense(int(self.embedding_dim['words']/2), activation='relu', name='projector')
         softmax_layer = Dense(2, activation='softmax', name='softmax')
         output_probabilities = softmax_layer(projection_layer(regularized_sentence_encoding))
 
@@ -57,10 +57,5 @@ class TrueFalseModel(TextTrainer):
         return TrueFalseInstance
 
     @overrides
-    def _set_max_lengths_from_model(self):
-        self.max_sentence_length = self.model.get_input_shape_at(0)[1]
-
-    @classmethod
-    def _get_custom_objects(cls):
-        custom_objects = super(TrueFalseModel, cls)._get_custom_objects()
-        return custom_objects
+    def _set_padding_lengths_from_model(self):
+        self._set_text_lengths_from_model_input(self.model.get_input_shape_at(0)[1:])

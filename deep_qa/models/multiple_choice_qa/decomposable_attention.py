@@ -6,7 +6,8 @@ from keras.layers import Input, merge
 from .multiple_true_false_memory_network import MultipleTrueFalseMemoryNetwork
 from ...layers.attention.masked_softmax import MaskedSoftmax
 from ...layers.top_knowledge_selector import TopKnowledgeSelector
-from ...layers.wrappers import TimeDistributedWithMask, EncoderWrapper
+from ...layers.wrappers.time_distributed_with_mask import TimeDistributedWithMask
+from ...layers.wrappers.encoder_wrapper import EncoderWrapper
 from ...training.models import DeepQaModel
 
 class MultipleTrueFalseDecomposableAttention(MultipleTrueFalseMemoryNetwork):
@@ -48,14 +49,14 @@ class MultipleTrueFalseDecomposableAttention(MultipleTrueFalseMemoryNetwork):
         question_input = Input(shape=self._get_question_shape(), dtype='int32', name="sentence_input")
         # (batch_size, num_options, background_size, sentence_length)
         knowledge_input = Input(shape=self._get_background_shape(), dtype='int32', name="background_input")
-        # (batch_size, num_options, sentence_length, embedding_size)
+        # (batch_size, num_options, sentence_length, embedding_dim)
         question_embedding = self._embed_input(question_input)
-        # (batch_size, num_options, background_size, sentence_length, embedding_size)
+        # (batch_size, num_options, background_size, sentence_length, embedding_dim)
         knowledge_embedding = self._embed_input(knowledge_input)
-        # (batch_size, num_options, sentence_length, embedding_size)
+        # (batch_size, num_options, sentence_length, embedding_dim)
         knowledge_embedding = TimeDistributedWithMask(TopKnowledgeSelector())(knowledge_embedding)
 
-        # (batch_size, num_options, sentence_length * 2, embedding_size)
+        # (batch_size, num_options, sentence_length * 2, embedding_dim)
         merged_embeddings = merge([knowledge_embedding, question_embedding], mode='concat',
                                   concat_axis=2)
         entailment_layer = EncoderWrapper(self._get_entailment_model())

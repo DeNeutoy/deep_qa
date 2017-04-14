@@ -1,8 +1,10 @@
 from keras import backend as K
-from keras.layers import Layer
 from keras.constraints import Constraint
-from keras.regularizers import L1L2Regularizer
+from keras.regularizers import l1_l2
 from overrides import overrides
+
+from .masked_layer import MaskedLayer
+
 
 class BetweenZeroAndOne(Constraint):
     """
@@ -20,38 +22,46 @@ class BetweenZeroAndOne(Constraint):
         return p
 
 
-class NoisyOr(Layer):
+class NoisyOr(MaskedLayer):
     r"""
-    This layer takes as input a tensor of probabilities and calculates the noisy-or probability
-    across a given axis based on the noisy-or equation:
-        :math:`p(x) = 1 - \prod_{i=1:N}(1 - q * p(x|y_n))`
-    where q is the noise parameter.
+    This layer takes as input a tensor of probabilities and calculates the
+    noisy-or probability across a given axis based on the noisy-or equation:
+
+    - :math:`p(x) = 1 - \prod_{i=1:N}(1 - q * p(x|y_n))`
+
+    where :math`q` is the noise parameter.
 
     Inputs:
-        - probabilities, shape ``(batch, ..., N, ...)``,
-          with an optional mask of the same shape,
+        - probabilities: shape ``(batch, ..., N, ...)``
+          Optionally takes a mask of the same shape,
           where N is the number of y's in the above equation
           (i.e. the number of probabilities being combined in the product),
           in the dimension corresponding to the specified axis.
+
     Output:
-        - X, shape ``(batch, ..., ...)``, one less than input dims,
-          with an optional mask of the same shape.  The lost dimension corresponds to the specified axis.
-          The output mask is the result of `K.any()` on the input mask, along the specified axis.
+        - X: shape ``(batch, ..., ...)``
+          The output has one less dimension than the input, and has an
+          optional mask of the same shape.  The lost dimension corresponds
+          to the specified axis. The output mask is the result of ``K.any()``
+          on the input mask, along the specified axis.
+
     Parameters
     ----------
     axis : int, default=-1
         The axis over which to combine probabilities.
+
     name : string, default='noisy_or'
         Name of the layer, ued to debug both the layer and its parameter.
+
     param_init : string, default='uniform'
         The initialization of the noise parameter.
+
     noise_param_constraint : Keras Constraint, default=None
         Optional, a constraint which would be applied to the noise parameter.
     """
     def __init__(self, axis=-1, name="noisy_or", param_init='uniform', noise_param_constraint=None, **kwargs):
         self.axis = axis
         self.param_init = param_init
-        self.supports_masking = True
         self.name = name
         # The noisy-or equation includes a noise parameter (q) which is learned during training.
         self.noise_parameter = None
@@ -63,12 +73,12 @@ class NoisyOr(Layer):
         self.noise_parameter = self.add_weight(shape=(),
                                                name=self.name + '_noise_param',
                                                initializer=self.param_init,
-                                               regularizer=L1L2Regularizer(l2=0.001),
+                                               regularizer=l1_l2(l2=0.001),
                                                constraint=self.noise_param_constraint,
                                                trainable=True)
         super(NoisyOr, self).build(input_shape)
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         if self.axis == -1:
             return input_shape[:-1]
         return input_shape[:self.axis - 1] + input_shape[self.axis:]
@@ -83,6 +93,9 @@ class NoisyOr(Layer):
     def call(self, inputs, mask=None):
         # shape: (batch size, ..., num_probs, ...)
         probabilities = inputs
+        if mask is not None:
+            probabilities *= K.cast(mask, "float32")
+
         noisy_probs = self.noise_parameter * probabilities
 
         # shape: (batch size, ..., num_probs, ...)

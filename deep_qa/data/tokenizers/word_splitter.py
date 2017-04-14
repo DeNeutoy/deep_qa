@@ -3,11 +3,14 @@ from typing import List
 
 from overrides import overrides
 
+
 class WordSplitter:
     """
-    A WordSplitter splits strings into words.  This is typically called a "tokenizer" in NLP, but
-    we need "Tokenizer" to refer to something else, so we're using WordSplitter here instead.
+    A ``WordSplitter`` splits strings into words.  This is typically called a "tokenizer" in NLP,
+    but we need ``Tokenizer`` to refer to something else, so we're using ``WordSplitter`` here
+    instead.
     """
+
     def split_words(self, sentence: str) -> List[str]:
         raise NotImplementedError
 
@@ -19,13 +22,13 @@ class SimpleWordSplitter(WordSplitter):
     whitespace-delimited token, separating contractions and punctuation.  We assume lower-cased,
     reasonably well-formed English sentences as input.
     """
-
-    # These are certainly incomplete.  But at least it's a start.
-    special_cases = set(['mr.', 'mrs.', 'etc.', 'e.g.', 'cf.', 'c.f.', 'eg.', 'al.'])
-    contractions = set(["n't", "'s", "'ve", "'re", "'ll", "'d", "'m"])
-    contractions |= set([x.replace("'", "’") for x in contractions])
-    ending_punctuation = set(['"', "'", '.', ',', ';', ')', ']', '}', ':', '!', '?', '%', '”', "’"])
-    beginning_punctuation = set(['"', "'", '(', '[', '{', '#', '$', '“', "‘"])
+    def __init__(self):
+        # These are certainly incomplete.  But at least it's a start.
+        self.special_cases = set(['mr.', 'mrs.', 'etc.', 'e.g.', 'cf.', 'c.f.', 'eg.', 'al.'])
+        self.contractions = set(["n't", "'s", "'ve", "'re", "'ll", "'d", "'m"])
+        self.contractions |= set([x.replace("'", "’") for x in self.contractions])
+        self.ending_punctuation = set(['"', "'", '.', ',', ';', ')', ']', '}', ':', '!', '?', '%', '”', "’"])
+        self.beginning_punctuation = set(['"', "'", '(', '[', '{', '#', '$', '“', "‘"])
 
     @overrides
     def split_words(self, sentence: str) -> List[str]:
@@ -81,13 +84,50 @@ class NltkWordSplitter(WordSplitter):
     faster.  But I'm adding this one back so that there's consistency with older versions of the
     code, if you really want it.
     """
+    def __init__(self):
+        pass
+
     @overrides
     def split_words(self, sentence: str) -> List[str]:
         # Import is here because it's slow, and by default unnecessary.
         from nltk.tokenize import word_tokenize
         return word_tokenize(sentence.lower())
 
+
+class SpacyWordSplitter(WordSplitter):
+    """
+    A tokenizer that uses spaCy's Tokenizer, which is much faster than the others.
+    """
+    def __init__(self):
+        # Import is here it's slow, and can be unnecessary.
+        import spacy
+        self.en_nlp = spacy.load('en')
+
+    @overrides
+    def split_words(self, sentence: str) -> List[str]:
+        return [str(token.lower_) for token in self.en_nlp.tokenizer(sentence)]
+
+
+class NoOpWordSplitter(WordSplitter):
+    """
+    This is a word splitter that does nothing.  We're playing a little loose with python's dynamic
+    typing, breaking the typical WordSplitter API a bit and assuming that you've already split
+    ``sentence`` into a list somehow, so you don't need to do anything else here.  For example, the
+    ``PreTokenizedTaggingInstance`` requires this word splitter, because it reads in pre-tokenized
+    data from a file.
+    """
+    @overrides
+    def __init__(self):
+        pass
+
+    @overrides
+    def split_words(self, sentence: str) -> List[str]:
+        assert isinstance(sentence, list), "This splitter is only meant to be used for pre-split text"
+        return sentence
+
+
 word_splitters = OrderedDict()  # pylint: disable=invalid-name
-word_splitters['default'] = SimpleWordSplitter
 word_splitters['simple'] = SimpleWordSplitter
 word_splitters['nltk'] = NltkWordSplitter
+word_splitters['spacy'] = SpacyWordSplitter
+word_splitters['no_op'] = NoOpWordSplitter

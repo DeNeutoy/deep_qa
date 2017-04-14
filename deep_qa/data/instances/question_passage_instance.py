@@ -78,28 +78,28 @@ class IndexedQuestionPassageInstance(IndexedInstance):
         lengths = {}
 
         # the number of words to pad the question to
-        lengths['num_question_words'] = question_lengths['word_sequence_length']
+        lengths['num_question_words'] = question_lengths['num_sentence_words']
 
         # the number of words to pad the passage to
-        lengths['num_passage_words'] = passage_lengths['word_sequence_length']
+        lengths['num_passage_words'] = passage_lengths['num_sentence_words']
 
-        if 'word_character_length' in question_lengths and 'word_character_length' in passage_lengths:
+        if 'num_word_characters' in question_lengths and 'num_word_characters' in passage_lengths:
             # the length of the longest word across the passage and question
-            lengths['word_character_length'] = max(question_lengths['word_character_length'],
-                                                   passage_lengths['word_character_length'])
+            lengths['num_word_characters'] = max(question_lengths['num_word_characters'],
+                                                 passage_lengths['num_word_characters'])
         return lengths
 
     @overrides
-    def pad(self, max_lengths: Dict[str, int]):
+    def pad(self, padding_lengths: Dict[str, int]):
         """
         In this function, we pad the questions and passages (in terms of number of words in each),
         as well as the individual words in the questions and passages themselves.
         """
-        max_lengths_tmp = max_lengths.copy()
-        max_lengths_tmp['word_sequence_length'] = max_lengths_tmp['num_question_words']
-        self.question_indices = self.pad_word_sequence(self.question_indices, max_lengths_tmp)
-        max_lengths_tmp['word_sequence_length'] = max_lengths_tmp['num_passage_words']
-        self.passage_indices = self.pad_word_sequence(self.passage_indices, max_lengths_tmp,
+        padding_lengths_tmp = padding_lengths.copy()
+        padding_lengths_tmp['num_sentence_words'] = padding_lengths_tmp['num_question_words']
+        self.question_indices = self.pad_word_sequence(self.question_indices, padding_lengths_tmp)
+        padding_lengths_tmp['num_sentence_words'] = padding_lengths_tmp['num_passage_words']
+        self.passage_indices = self.pad_word_sequence(self.passage_indices, padding_lengths_tmp,
                                                       truncate_from_right=False)
 
     @overrides

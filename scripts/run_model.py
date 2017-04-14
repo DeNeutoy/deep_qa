@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import sys
 
 # These have to be before we do any import from keras.  It would be nice to be able to pass in a
@@ -8,7 +9,7 @@ import sys
 import random
 import numpy
 random.seed(13370)
-numpy.random.seed(1337)  # pylint: disable=no-member
+numpy.random.seed(1337)
 
 # pylint: disable=wrong-import-position
 
@@ -19,8 +20,10 @@ import pyhocon
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from deep_qa.common.checks import ensure_pythonhashseed_set, log_keras_version_info
-from deep_qa.common.params import get_choice
+from deep_qa.common.params import get_choice, replace_none
+from deep_qa.common.tee_logger import TeeLogger
 from deep_qa.models import concrete_models
+from keras import backend as K
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -33,6 +36,15 @@ def main():
     param_file = sys.argv[1]
     params = pyhocon.ConfigFactory.parse_file(param_file)
     params = replace_none(params)
+    log_dir = params.get("model_serialization_prefix", None)  # pylint: disable=no-member
+    if log_dir is not None:
+        sys.stdout = TeeLogger(log_dir + "_stdout.log", sys.stdout)
+        sys.stderr = TeeLogger(log_dir + "_stderr.log", sys.stderr)
+        handler = logging.FileHandler(log_dir + "_python_logging.log")
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+        logging.getLogger().addHandler(handler)
+        shutil.copyfile(param_file, log_dir + "_model_params.json")
     model_type = get_choice(params, 'model_class', concrete_models.keys())
     model_class = concrete_models[model_type]
     model = model_class(params)
@@ -44,15 +56,9 @@ def main():
         logger.info("Not enough training inputs.  Assuming you wanted to load a model instead.")
         # TODO(matt): figure out a way to specify which epoch you want to load a model from.
         model.load_model()
+    if K.backend() == "tensorflow":
+        K.clear_session()
 
-
-def replace_none(dictionary):
-    for key in dictionary.keys():
-        if dictionary[key] == "None":
-            dictionary[key] = None
-        elif isinstance(dictionary[key], pyhocon.config_tree.ConfigTree):
-            dictionary[key] = replace_none(dictionary[key])
-    return dictionary
 
 if __name__ == "__main__":
     ensure_pythonhashseed_set()

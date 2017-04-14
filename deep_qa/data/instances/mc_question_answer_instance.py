@@ -116,31 +116,31 @@ class IndexedMcQuestionAnswerInstance(IndexedQuestionPassageInstance):
         lengths['num_options'] = len(self.option_indices)
 
         # the number of words in the longest option
-        lengths['num_option_words'] = max([lengths['word_sequence_length'] for
+        lengths['num_option_words'] = max([lengths['num_sentence_words'] for
                                            lengths in option_lengths])
         # the length of the longest word across the passage, question, and options
-        if 'word_character_length' in option_lengths[0]:
+        if 'num_word_characters' in option_lengths[0]:
             # length of longest word (in characters) in options
-            max_option_word_length = max([lengths['word_character_length'] for
+            max_option_word_length = max([lengths['num_word_characters'] for
                                           lengths in option_lengths])
 
-            lengths['word_character_length'] = max(lengths['word_character_length'],
-                                                   max_option_word_length)
+            lengths['num_word_characters'] = max(lengths['num_word_characters'],
+                                                 max_option_word_length)
 
         return lengths
 
     @overrides
-    def pad(self, max_lengths: Dict[str, int]):
+    def pad(self, padding_lengths: Dict[str, int]):
         """
         In this function, we pad the questions and passages (in terms of number of words in each),
         as well as the individual words in the questions and passages themselves. We also pad the
         number of answer options, the answer options (in terms of numbers or words in each),
         as well as the individual words in the answer options.
         """
-        super(IndexedMcQuestionAnswerInstance, self).pad(max_lengths)
+        super(IndexedMcQuestionAnswerInstance, self).pad(padding_lengths)
 
         # pad the number of options
-        num_options = max_lengths['num_options']
+        num_options = padding_lengths['num_options']
         while len(self.option_indices) < num_options:
             self.option_indices.append([])
         self.option_indices = self.option_indices[:num_options]
@@ -148,8 +148,8 @@ class IndexedMcQuestionAnswerInstance(IndexedQuestionPassageInstance):
         # pad the number of words in the options, number of characters in each word in option
         padded_options = []
         for indices in self.option_indices:
-            max_lengths['word_sequence_length'] = max_lengths['num_option_words']
-            padded_options.append(self.pad_word_sequence(indices, max_lengths))
+            padding_lengths['num_sentence_words'] = padding_lengths['num_option_words']
+            padded_options.append(self.pad_word_sequence(indices, padding_lengths))
         self.option_indices = padded_options
 
 

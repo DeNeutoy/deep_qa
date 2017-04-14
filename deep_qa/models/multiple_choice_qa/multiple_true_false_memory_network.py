@@ -7,7 +7,7 @@ from keras.layers import Layer, TimeDistributed
 from ..memory_networks.memory_network import MemoryNetwork
 from ...data.instances.true_false_instance import TrueFalseInstance
 from ...data.instances.multiple_true_false_instance import MultipleTrueFalseInstance
-from ...layers.wrappers import EncoderWrapper
+from ...layers.wrappers.encoder_wrapper import EncoderWrapper
 
 
 class MultipleTrueFalseMemoryNetwork(MemoryNetwork):
@@ -43,23 +43,24 @@ class MultipleTrueFalseMemoryNetwork(MemoryNetwork):
         self.entailment_choices = ['multiple_choice_mlp']
 
     @overrides
-    def _get_max_lengths(self) -> Dict[str, int]:
-        max_lengths = super(MultipleTrueFalseMemoryNetwork, self)._get_max_lengths()
-        max_lengths['num_options'] = self.num_options
-        return max_lengths
+    def _get_padding_lengths(self) -> Dict[str, int]:
+        padding_lengths = super(MultipleTrueFalseMemoryNetwork, self)._get_padding_lengths()
+        padding_lengths['num_options'] = self.num_options
+        return padding_lengths
 
     @overrides
     def _instance_type(self):
         return TrueFalseInstance
 
     @overrides
-    def _set_max_lengths(self, max_lengths: Dict[str, int]):
-        super(MultipleTrueFalseMemoryNetwork, self)._set_max_lengths(max_lengths)
-        self.num_options = max_lengths['num_options']
+    def _set_padding_lengths(self, padding_lengths: Dict[str, int]):
+        super(MultipleTrueFalseMemoryNetwork, self)._set_padding_lengths(padding_lengths)
+        if self.num_options is None:
+            self.num_options = padding_lengths['num_options']
 
     @overrides
-    def _set_max_lengths_from_model(self):
-        self.max_sentence_length = self.model.get_input_shape_at(0)[0][2]
+    def _set_padding_lengths_from_model(self):
+        self._set_text_lengths_from_model_input(self.model.get_input_shape_at(0)[0][2:])
         self.max_knowledge_length = self.model.get_input_shape_at(0)[1][2]
         self.num_options = self.model.get_input_shape_at(0)[0][1]
 
@@ -101,9 +102,18 @@ class MultipleTrueFalseMemoryNetwork(MemoryNetwork):
         return TimeDistributed(base_combiner, name="timedist_%s" % base_combiner.name)
 
     @overrides
-    def _load_dataset_from_files(self, files: List[str]):
-        dataset = super(MultipleTrueFalseMemoryNetwork, self)._load_dataset_from_files(files)
+    def load_dataset_from_files(self, files: List[str]):
+        dataset = super(MultipleTrueFalseMemoryNetwork, self).load_dataset_from_files(files)
         return dataset.to_question_dataset()
+
+    @classmethod
+    @overrides
+    def _get_custom_objects(cls):
+        custom_objects = super(MultipleTrueFalseMemoryNetwork, cls)._get_custom_objects()
+        custom_objects['EncoderWrapper'] = EncoderWrapper
+        from ...layers.attention.masked_softmax import MaskedSoftmax
+        custom_objects['MaskedSoftmax'] = MaskedSoftmax
+        return custom_objects
 
     @overrides
     def _render_layer_outputs(self, instance: MultipleTrueFalseInstance, outputs: Dict[str, numpy.array]) -> str:

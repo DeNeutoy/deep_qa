@@ -1,53 +1,95 @@
-from typing import Any, Dict
-
 from keras import backend as K
-from keras import initializations, activations
+from keras import activations
+from overrides import overrides
 
 from .word_alignment import WordAlignmentEntailment
 from ...tensors.backend import switch, apply_feed_forward
 
+
 class DecomposableAttentionEntailment(WordAlignmentEntailment):
-    '''
-    This layer is a reimplementation of the entailment algorithm described in the following paper:
-    "A Decomposable Attention Model for Natural Language Inference", Parikh et al., 2016.
-    The algorithm has three main steps:
+    """
+    This layer is a reimplementation of the entailment algorithm described in
+    "A Decomposable Attention Model for Natural Language Inference", Parikh et
+    al., 2016. The algorithm has three main steps:
 
-    1) Attend: Compute dot products between all pairs of projections of words in the
-      hypothesis and the premise, normalize those dot products to use them to align each word
-      in premise to a phrase in the hypothesis and vice-versa. These alignments are then used to
-      summarize the aligned phrase in the other sentence as a weighted sum. The initial word
-      projections are computed using a feed forward NN, F.
-    2) Compare: Pass a concatenation of each word in the premise and the summary of its aligned
-      phrase in the hypothesis through a feed forward NN, G, to get a projected comparison. Do the
-      same with the hypothesis and the aligned phrase from the premise.
-    3) Aggregate: Sum over the comparisons to get a single vector each for premise-hypothesis
-      comparison, and hypothesis-premise comparison. Pass them through a third feed forward NN (H),
-      to get the entailment decision.
+    (1) Attend: Compute dot products between all pairs of projections of words
+        in the hypothesis and the premise, normalize those dot products to use
+        them to align each word in premise to a phrase in the hypothesis and
+        vice-versa. These alignments are then used to summarize the aligned
+        phrase in the other sentence as a weighted sum. The initial word
+        projections are computed using a feed forward NN, F.
 
-    This layer can take either a tuple (premise, hypothesis) or a concatenation of them as input.
-    Expected shapes:
-        tuple input: (batch_size, sentence_length, embed_dim), (batch_size, sentence_length, embed_dim)
-        single input: (batch_size, sentence_length*2, embed_dim)
-    NOTE: premise_length = hypothesis_length = sentence_length below.
-    '''
-    def __init__(self, params: Dict[str, Any]):
-        self.num_hidden_layers = params.pop('num_hidden_layers', 1)
-        self.hidden_layer_width = params.pop('hidden_layer_width', 50)
-        self.hidden_layer_activation = params.pop('hidden_layer_activation', 'relu')
-        self.final_activation = params.pop('final_activation', 'softmax')
-        self.output_dim = 2 if self.final_activation == 'softmax' else 1
-        self.init = initializations.get(params.pop('init', 'uniform'))
+    (2) Compare: Pass a concatenation of each word in the premise and the
+        summary of its aligned phrase in the hypothesis through a feed forward
+        NN, G, to get a projected comparison. Do the same with the hypothesis
+        and the aligned phrase from the premise.
+
+    (3) Aggregate: Sum over the comparisons to get a single vector each for
+        premise-hypothesis comparison, and hypothesis-premise comparison. Pass
+        them through a third feed forward NN (H), to get the entailment
+        decision.
+
+    This layer can take either a tuple (premise, hypothesis) or a concatenation
+    of them as input.
+
+    Input:
+
+    - Tuple input: a premise sentence and a hypothesis sentence, both with shape ``(batch_size,
+      sentence_length, embed_dim)`` and masks of shape ``(batch_size, sentence_length)``
+    - Single input: a single tensor of shape ``(batch_size, sentence_length * 2, embed_dim)``, with
+      a mask of shape ``(batch_size, sentence_length * 2)``, which we will split in half to get the
+      premise and hypothesis sentences.
+
+    Output:
+
+    - Entailment decisions with the given ``output_dim``.
+
+    Parameters
+    ----------
+    num_hidden_layers: int, optional (default=1)
+        Number of hidden layers in each of the feed forward neural nets described above.
+    hidden_layer_width: int, optional (default=50)
+        Width of each hidden layer in each of the feed forward neural nets described above.
+    hidden_layer_activation: str, optional (default='relu')
+        Activation for each hidden layer in each of the feed forward neural nets described above.
+    final_activation: str, optional (default='softmax')
+        Activation to use for the final output.  Should almost certainly be 'softmax'.
+    output_dim: int, optional (default=3)
+        Dimensionality of the final output.  If this is the last layer in your model, this needs to
+        be the same as the number of labels you have.
+    initializer: str, optional (default='uniform')
+        Will be passed to ``self.add_weight()`` for each of the weight matrices in the feed forward
+        neural nets described above.
+
+    Notes
+    -----
+    premise_length = hypothesis_length = sentence_length below.
+    """
+    def __init__(self,
+                 num_hidden_layers: int=1,
+                 hidden_layer_width: int=50,
+                 hidden_layer_activation: str='relu',
+                 final_activation: str='softmax',
+                 output_dim: int=3,
+                 initializer: str='uniform',
+                 **kwargs):
+        self.num_hidden_layers = num_hidden_layers
+        self.hidden_layer_width = hidden_layer_width
+        self.hidden_layer_activation = hidden_layer_activation
+        self.final_activation = final_activation
+        self.output_dim = output_dim
+        self.initializer = initializer
+
+        # Weights will be initialized in the build method.
         self.premise_length = None
         self.hypothesis_length = None
-        # Making the name end with 'softmax' to let debug handle this layer's output correctly.
-        params['name'] = 'decomposable_attention_softmax'
-        # Weights will be initialized in the build method.
         self.attend_weights = []  # weights related to F
         self.compare_weights = []  # weights related to G
         self.aggregate_weights = []  # weights related to H
         self.scorer = None
-        super(DecomposableAttentionEntailment, self).__init__(params)
+        super(DecomposableAttentionEntailment, self).__init__(**kwargs)
 
+    @overrides
     def build(self, input_shape):
         '''
         This model has three feed forward NNs (F, G and H in the paper). We assume that all three
@@ -72,41 +114,47 @@ class DecomposableAttentionEntailment(WordAlignmentEntailment):
         compare_input_dim = 2 * self.input_dim
         aggregate_input_dim = self.hidden_layer_width * 2
         for i in range(self.num_hidden_layers):
-            self.attend_weights.append(self.init((attend_input_dim, self.hidden_layer_width),
-                                                 name='%s_attend_%d' % (self.name, i)))
-            self.compare_weights.append(self.init((compare_input_dim, self.hidden_layer_width),
-                                                  name='%s_compare_%d' % (self.name, i)))
-            self.aggregate_weights.append(self.init((aggregate_input_dim, self.hidden_layer_width),
-                                                    name='%s_aggregate_%d' % (self.name, i)))
+            self.attend_weights.append(self.add_weight((attend_input_dim, self.hidden_layer_width),
+                                                       name='%s_attend_%d' % (self.name, i),
+                                                       initializer=self.initializer))
+            self.compare_weights.append(self.add_weight((compare_input_dim, self.hidden_layer_width),
+                                                        name='%s_compare_%d' % (self.name, i),
+                                                        initializer=self.initializer))
+            self.aggregate_weights.append(self.add_weight((aggregate_input_dim, self.hidden_layer_width),
+                                                          name='%s_aggregate_%d' % (self.name, i),
+                                                          initializer=self.initializer))
             attend_input_dim = self.hidden_layer_width
             compare_input_dim = self.hidden_layer_width
             aggregate_input_dim = self.hidden_layer_width
-        self.trainable_weights = self.attend_weights + self.compare_weights + self.aggregate_weights
-        self.scorer = self.init((self.hidden_layer_width, self.output_dim), name='%s_score' % self.name)
-        self.trainable_weights.append(self.scorer)
+        self.scorer = self.add_weight((self.hidden_layer_width, self.output_dim),
+                                      initializer=self.initializer,
+                                      name='%s_score' % self.name)
 
-    def get_output_shape_for(self, input_shape):
+    @overrides
+    def compute_output_shape(self, input_shape):
         # (batch_size, 2)
         if isinstance(input_shape, list):
             return (input_shape[0][0], self.output_dim)
         else:
             return (input_shape[0], self.output_dim)
 
-    def compute_mask(self, x, mask=None):
+    @overrides
+    def compute_mask(self, inputs, mask=None):
         # pylint: disable=unused-argument
         return None
 
-    def call(self, x, mask=None):
+    @overrides
+    def call(self, inputs, mask=None):
         # premise_length = hypothesis_length in the following lines, but the names are kept separate to keep
         # track of the axes being normalized.
         # The inputs can be a two different tensors, or a concatenation. Hence, the conditional below.
-        if isinstance(x, list) or isinstance(x, tuple):
-            premise_embedding, hypothesis_embedding = x
+        if isinstance(inputs, list) or isinstance(inputs, tuple):
+            premise_embedding, hypothesis_embedding = inputs
             # (batch_size, premise_length), (batch_size, hypothesis_length)
             premise_mask, hypothesis_mask = mask
         else:
-            premise_embedding = x[:, :self.premise_length, :]
-            hypothesis_embedding = x[:, self.premise_length:, :]
+            premise_embedding = inputs[:, :self.premise_length, :]
+            hypothesis_embedding = inputs[:, self.premise_length:, :]
             # (batch_size, premise_length), (batch_size, hypothesis_length)
             premise_mask = None if mask is None else mask[:, :self.premise_length]
             hypothesis_mask = None if mask is None else mask[:, self.premise_length:]
@@ -181,3 +229,17 @@ class DecomposableAttentionEntailment(WordAlignmentEntailment):
         # Equation 3 in the paper.
         compared_representation = apply_feed_forward(comparison_input, self.compare_weights, activation)
         return compared_representation
+
+    @overrides
+    def get_config(self):
+        config = {
+                'num_hidden_layers': self.num_hidden_layers,
+                'hidden_layer_width': self.hidden_layer_width,
+                'hidden_layer_activation': self.hidden_layer_activation,
+                'final_activation': self.final_activation,
+                'output_dim': self.output_dim,
+                'initializer': self.initializer,
+                }
+        base_config = super(DecomposableAttentionEntailment, self).get_config()
+        config.update(base_config)
+        return config

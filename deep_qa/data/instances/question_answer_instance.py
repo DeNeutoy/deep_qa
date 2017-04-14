@@ -98,27 +98,27 @@ class IndexedQuestionAnswerInstance(IndexedInstance):
         """
         question_lengths = self._get_word_sequence_lengths(self.question_indices)
         answer_lengths = [self._get_word_sequence_lengths(option) for option in self.option_indices]
-        max_answer_length = max([lengths['word_sequence_length'] for lengths in answer_lengths])
+        max_answer_length = max([lengths['num_sentence_words'] for lengths in answer_lengths])
         num_options = len(self.option_indices)
         lengths = {}
         lengths.update(question_lengths)
-        if 'word_character_length' in question_lengths:
-            max_answer_character_length = max([lengths['word_character_length'] for lengths in answer_lengths])
-            max_character_length = max([question_lengths['word_character_length'], max_answer_character_length])
-            lengths['word_character_length'] = max_character_length
+        if 'num_word_characters' in question_lengths:
+            max_answer_character_length = max([lengths['num_word_characters'] for lengths in answer_lengths])
+            max_character_length = max([question_lengths['num_word_characters'], max_answer_character_length])
+            lengths['num_word_characters'] = max_character_length
         lengths['answer_length'] = max_answer_length
         lengths['num_options'] = num_options
         return lengths
 
     @overrides
-    def pad(self, max_lengths: List[int]):
+    def pad(self, padding_lengths: List[int]):
         """
         Three things to pad here: the question length, the answer option length, and the number of
         answer options.
         """
-        self.question_indices = self.pad_word_sequence(self.question_indices, max_lengths)
+        self.question_indices = self.pad_word_sequence(self.question_indices, padding_lengths)
 
-        num_options = max_lengths['num_options']
+        num_options = padding_lengths['num_options']
         while len(self.option_indices) < num_options:
             self.option_indices.append([])
         self.option_indices = self.option_indices[:num_options]
@@ -126,8 +126,8 @@ class IndexedQuestionAnswerInstance(IndexedInstance):
         padded_options = []
         for indices in self.option_indices:
             answer_lengths = {}
-            answer_lengths.update(max_lengths)
-            answer_lengths['word_sequence_length'] = max_lengths['answer_length']
+            answer_lengths.update(padding_lengths)
+            answer_lengths['num_sentence_words'] = padding_lengths['answer_length']
             padded_options.append(self.pad_word_sequence(indices, answer_lengths))
         self.option_indices = padded_options
 

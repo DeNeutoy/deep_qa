@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from overrides import overrides
 
 import numpy
-from keras.layers import Dropout, Input, Layer, merge
+from keras.layers import Dropout, Input, Layer, Concatenate
 
 from ...common.params import get_choice_with_default
 from ...data.dataset import TextDataset
@@ -26,40 +26,62 @@ from ...training.text_trainer import TextTrainer
 class MemoryNetwork(TextTrainer):
     '''
     We call this a Memory Network because it has an attention over background knowledge, or
-    "memory", similar to a memory network.  This implementation generalizes the architecture of the
+    "memory", similar to a memory network. This implementation generalizes the architecture of the
     original memory network, though, and can be used to implement several papers in the literature,
     as well as some models that we came up with.
 
     Our basic architecture is as follows:
-        Input: a sentence encoding and a set of background knowledge ("memory") encodings
 
-        current_memory = sentence_encoding
-        For each memory layer:
-           attention_weights = knowledge_selector(current_memory, background)
-           aggregated_background = weighted_sum(attention_weights, background)
-           current_memory = memory_updater(current_memory, aggregated_background)
-        final_score = entailment_model(aggregated_background, current_memory, sentence_encoding)
+    - Input: a sentence encoding and a set of background knowledge ("memory")
+      encodings
 
-    There are thus three main knobs that can be turned (in addition to the number of memory
-    layers):
-        1. the knowledge_selector
-        2. the memory_updater
-        3. the entailment_model
+    - current_memory = sentence_encoding
+
+    - For each memory layer:
+
+      - attention_weights = knowledge_selector(current_memory, background)
+      - aggregated_background = weighted_sum(attention_weights, background)
+      - current_memory = memory_updater(current_memory, aggregated_background)
+      - final_score = entailment_model(aggregated_background, current_memory, sentence_encoding)
+
+    There are thus three main knobs that can be turned (in addition to the
+    number of memory layers):
+
+        (1) the knowledge_selector
+        (2) the memory_updater
+        (3) the entailment_model
 
     The original memory networks paper used the following:
-        1. dot product (our DotProductKnowledgeSelector)
-        2. sum
-        3. linear classifier on top of current_memory
 
-    The attentive reader in "Teaching Machines to Read and Comprehend", Hermann et al., 2015, used
-    the following:
-        1. a dense layer with a dot product bias (our ParameterizedKnowledgeSelector)
-        2. Dense(K.concat([current_memory, aggregated_background]))
-        3. Dense(current_memory)
+        (1) dot product (our DotProductKnowledgeSelector)
+        (2) sum
+        (3) linear classifier on top of current_memory
+
+    The attentive reader in "Teaching Machines to Read and Comprehend", Hermann
+    et al., 2015, used the following:
+
+        (1) a dense layer with a dot product bias (our ParameterizedKnowledgeSelector)
+        (2) Dense(K.concat([current_memory, aggregated_background]))
+        (3) Dense(current_memory)
 
     Our thought is that we should treat the last step as an entailment problem - does the
-    background knowledge entail the input sentence?  Previous work was solving a different problem,
+    background knowledge entail the input sentence? Previous work was solving a different problem,
     so they used simpler models "entailment".
+
+    Notes
+    -----
+    This code is pretty over-engineered.  I (Matt) tried to cram too many variants into a single
+    superclass, to share as much code as possible, and ended up trying to make this class do too
+    much.  The code is pretty convoluted in places because of that.
+
+    Additionally, I also have largely given up on memory networks as reasonable models, after
+    looking more closely at the hacks needed to get them to actually work on bAbI.  You should
+    probably use other models, like the ones in :mod:`~deep_qa.models.reading_comprehension`, for
+    question answering tasks.  The code is cleaner and the models work better.  Because I've pretty
+    much given up on memory networks, I am no longer supporting all ``TextTrainer`` features in
+    memory network code; there's a good chance that a new feature will be incompatible with these
+    models.  For instance, the "words and characters" tokenizer breaks some of these models in
+    some configurations, and it's not worth the effort to fix it.
     '''
 
     # This specifies whether the entailment decision made my this solver (if any) has a sigmoid
@@ -116,8 +138,8 @@ class MemoryNetwork(TextTrainer):
         self.entailment_model = None
 
     @overrides
-    def _load_dataset_from_files(self, files: List[str]):
-        dataset = super(MemoryNetwork, self)._load_dataset_from_files(files)
+    def load_dataset_from_files(self, files: List[str]):
+        dataset = super(MemoryNetwork, self).load_dataset_from_files(files)
         return TextDataset.read_background_from_file(dataset, files[1], self._background_instance_type())
 
     @overrides
@@ -132,25 +154,27 @@ class MemoryNetwork(TextTrainer):
     @overrides
     def _get_custom_objects(cls):
         custom_objects = super(MemoryNetwork, cls)._get_custom_objects()
-        for object_dict in [updaters, selectors, entailment_input_combiners]:
+        for object_dict in [updaters, selectors, entailment_input_combiners, knowledge_combiners]:
             for value in object_dict.values():
                 custom_objects[value.__name__] = value
+        custom_objects['VectorMatrixMerge'] = VectorMatrixMerge
         return custom_objects
 
     @overrides
-    def _get_max_lengths(self) -> Dict[str, int]:
-        max_lengths = super(MemoryNetwork, self)._get_max_lengths()
-        max_lengths['background_sentences'] = self.max_knowledge_length
-        return max_lengths
+    def _get_padding_lengths(self) -> Dict[str, int]:
+        padding_lengths = super(MemoryNetwork, self)._get_padding_lengths()
+        padding_lengths['background_sentences'] = self.max_knowledge_length
+        return padding_lengths
 
     @overrides
-    def _set_max_lengths(self, max_lengths: Dict[str, int]):
-        super(MemoryNetwork, self)._set_max_lengths(max_lengths)
-        self.max_knowledge_length = max_lengths['background_sentences']
+    def _set_padding_lengths(self, padding_lengths: Dict[str, int]):
+        super(MemoryNetwork, self)._set_padding_lengths(padding_lengths)
+        if self.max_knowledge_length is None:
+            self.max_knowledge_length = padding_lengths['background_sentences']
 
     @overrides
-    def _set_max_lengths_from_model(self):
-        self.max_sentence_length = self.model.get_input_shape_at(0)[0][1]
+    def _set_padding_lengths_from_model(self):
+        self.num_sentence_words = self.model.get_input_shape_at(0)[0][1]
         self.max_knowledge_length = self.model.get_input_shape_at(0)[1][1]
 
     def _get_question_shape(self):
@@ -208,7 +232,7 @@ class MemoryNetwork(TextTrainer):
         params = deepcopy(self.knowledge_encoder_params)
         knowledge_encoder_type = get_choice_with_default(params, "type", list(knowledge_encoders.keys()))
         params['name'] = name
-        params['encoding_dim'] = self.embedding_size
+        params['encoding_dim'] = self.embedding_dim['words']
         params['knowledge_length'] = self.max_knowledge_length
         params['question_encoder'] = question_encoder
         params['has_multiple_backgrounds'] = self.has_multiple_backgrounds
@@ -250,7 +274,7 @@ class MemoryNetwork(TextTrainer):
         params = deepcopy(self.knowledge_combiner_params)
         params['name'] = name
         # These are required for the Attentive
-        params['output_dim'] = self.embedding_size
+        params['output_dim'] = self.embedding_dim['words']
         params['input_length'] = self.max_knowledge_length
 
         combiner_type = get_choice_with_default(params, "type", list(knowledge_combiners.keys()))
@@ -273,7 +297,7 @@ class MemoryNetwork(TextTrainer):
         params = deepcopy(self.memory_updater_params)
         updater_type = get_choice_with_default(params, "type", list(updaters.keys()))
         params['name'] = name
-        params['encoding_dim'] = self.embedding_size
+        params['output_dim'] = self.embedding_dim['words']
         return updaters[updater_type](**params)
 
     def _get_entailment_input_combiner(self):
@@ -290,7 +314,7 @@ class MemoryNetwork(TextTrainer):
         # calls to params.pop()), but it's possible we'll want to call this more than once.  So
         # we'll make a copy and use that instead of self.entailment_combiner_params.
         params = deepcopy(self.entailment_combiner_params)
-        params['encoding_dim'] = self.embedding_size
+        params['encoding_dim'] = self.embedding_dim['words']
         combiner_type = get_choice_with_default(params, "type", list(entailment_input_combiners.keys()))
         return entailment_input_combiners[combiner_type](**params)
 
@@ -319,7 +343,7 @@ class MemoryNetwork(TextTrainer):
         model_type = get_choice_with_default(entailment_params, "type", self.entailment_choices)
         # TODO(matt): Not great to have these two lines here.
         if model_type == 'question_answer_mlp':
-            entailment_params['answer_dim'] = self.embedding_size
+            entailment_params['answer_dim'] = self.embedding_dim['words']
         return entailment_models[model_type](entailment_params)
 
     def _get_memory_network_recurrence(self):
@@ -344,9 +368,7 @@ class MemoryNetwork(TextTrainer):
         # Step 3: Encode the two embedded inputs.
         question_encoder = self._get_encoder()
         question_encoder = self._time_distribute_question_encoder(question_encoder)
-        print("question embedding:", question_embedding)
         encoded_question = question_encoder(question_embedding)  # (samples, encoding_dim)
-        print("encoded question:", question_embedding)
 
         knowledge_encoder = self._get_knowledge_encoder(question_encoder)
         encoded_knowledge = knowledge_encoder(knowledge_embedding)  # (samples, knowledge_len, encoding_dim)
@@ -367,10 +389,8 @@ class MemoryNetwork(TextTrainer):
 
         # Step 5: Finally, run the sentence encoding, the current memory, and the attended
         # background knowledge through an entailment model to get a final true/false score.
-        entailment_input = merge([encoded_question, current_memory, attended_knowledge],
-                                 mode='concat',
-                                 concat_axis=self._get_knowledge_axis(),
-                                 name='concat_entailment_inputs')
+        concat_layer = Concatenate(axis=self._get_knowledge_axis(), name='concat_entailment_inputs')
+        entailment_input = concat_layer([encoded_question, current_memory, attended_knowledge])
         combined_input = self._get_entailment_input_combiner()(entailment_input)
         extra_entailment_inputs, entailment_output = self._get_entailment_output(combined_input)
 
@@ -411,10 +431,9 @@ class MemoryNetwork(TextTrainer):
         # of just passing a list.
         # We going from two inputs of (batch_size, encoding_dim) to one input of (batch_size,
         # encoding_dim * 2).
-        updater_input = merge([encoded_question, current_memory, attended_knowledge],
-                              mode='concat',
-                              concat_axis=knowledge_axis,
-                              name='concat_current_memory_with_background_%d' % self.iteration)
+        concat_layer = Concatenate(axis=knowledge_axis,
+                                   name='concat_current_memory_with_background_%d' % self.iteration)
+        updater_input = concat_layer([encoded_question, current_memory, attended_knowledge])
         memory_updater = self._get_memory_updater(self.iteration)
         current_memory = memory_updater(updater_input)
         self.iteration += 1
