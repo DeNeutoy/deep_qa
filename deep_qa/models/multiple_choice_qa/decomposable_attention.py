@@ -9,6 +9,7 @@ from ...layers.wrappers import TimeDistributedWithMask, EncoderWrapper
 from ...layers import TopKnowledgeSelector
 from ...training.models import DeepQaModel
 
+
 class MultipleTrueFalseDecomposableAttention(MultipleTrueFalseMemoryNetwork):
     '''
     This solver extends the DecomposableAttention to the multiple true/false case.  Instead

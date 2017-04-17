@@ -6,6 +6,7 @@ from keras.layers import Input
 from ...data.instances.multiple_choice_qa import QuestionAnswerInstance
 from ...layers.wrappers import EncoderWrapper
 from ..memory_networks import MemoryNetwork
+from ...common.params import pop_with_default
 
 
 class QuestionAnswerMemoryNetwork(MemoryNetwork):
@@ -26,7 +27,7 @@ class QuestionAnswerMemoryNetwork(MemoryNetwork):
     '''
 
     def __init__(self, params: Dict[str, Any]):
-        self.answer_encoder_name = params.pop("answer_encoder_name", "answer")
+        self.answer_encoder_name = pop_with_default(params, "answer_encoder_name", "answer")
         super(QuestionAnswerMemoryNetwork, self).__init__(params)
 
         # Now we set some class-specific member variables.

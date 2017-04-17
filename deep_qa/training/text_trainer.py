@@ -10,7 +10,7 @@ from overrides import overrides
 import numpy
 
 from ..common.checks import ConfigurationError
-from ..common.params import get_choice_with_default
+from ..common.params import get_choice_with_default, pop_with_default
 from ..common.util import group_by_count
 from ..data.dataset import TextDataset, IndexedDataset
 from ..data.instances.instance import Instance, TextInstance
@@ -116,17 +116,17 @@ class TextTrainer(Trainer):
     """
     # pylint: enable=line-too-long
     def __init__(self, params: Dict[str, Any]):
-        self.pretrained_embeddings_file = params.pop('pretrained_embeddings_file', None)
-        self.fine_tune_embeddings = params.pop('fine_tune_embeddings', False)
-        self.project_embeddings = params.pop('project_embeddings', False)
-        self.embedding_dim = params.pop('embedding_dim', {'words': 50, 'characters': 8})
-        self.embedding_dropout = params.pop('embedding_dropout', 0.5)
-        self.use_data_generator = params.pop('use_data_generator', False)
-        self.use_dynamic_padding = params.pop('use_dynamic_padding', False)
-        self.num_sentence_words = params.pop('num_sentence_words', None)
-        self.num_word_characters = params.pop('num_word_characters', None)
+        self.pretrained_embeddings_file = pop_with_default(params, 'pretrained_embeddings_file', None)
+        self.fine_tune_embeddings = pop_with_default(params, 'fine_tune_embeddings', False)
+        self.project_embeddings = pop_with_default(params, 'project_embeddings', False)
+        self.embedding_dim = pop_with_default(params, 'embedding_dim', {'words': 50, 'characters': 8})
+        self.embedding_dropout = pop_with_default(params, 'embedding_dropout', 0.5)
+        self.use_data_generator = pop_with_default(params, 'use_data_generator', False)
+        self.use_dynamic_padding = pop_with_default(params, 'use_dynamic_padding', False)
+        self.num_sentence_words = pop_with_default(params, 'num_sentence_words', None)
+        self.num_word_characters = pop_with_default(params, 'num_word_characters', None)
 
-        tokenizer_params = params.pop('tokenizer', {})
+        tokenizer_params = pop_with_default(params, 'tokenizer', {})
         tokenizer_choice = get_choice_with_default(tokenizer_params, 'type', list(tokenizers.keys()))
         self.tokenizer = tokenizers[tokenizer_choice](tokenizer_params)
         # Note that the way this works is a little odd - we need each Instance object to do the
@@ -135,11 +135,13 @@ class TextTrainer(Trainer):
         # we read here.
         TextInstance.tokenizer = self.tokenizer
 
-        self.encoder_params = params.pop('encoder', {'default': {}})
-        self.encoder_fallback_behavior = params.pop('encoder_fallback_behavior', 'crash')
-        self.seq2seq_encoder_params = params.pop('seq2seq_encoder', {'default': {"encoder_params": {},
-                                                                                 "wrapper_params": {}}})
-        self.seq2seq_encoder_fallback_behavior = params.pop('seq2seq_encoder_fallback_behavior', 'crash')
+        self.encoder_params = pop_with_default(params, 'encoder', {'default': {}})
+        self.encoder_fallback_behavior = pop_with_default(params, 'encoder_fallback_behavior', 'crash')
+        self.seq2seq_encoder_params = pop_with_default(params, 'seq2seq_encoder',
+                                                       {'default': {"encoder_params": {},
+                                                                    "wrapper_params": {}}})
+        self.seq2seq_encoder_fallback_behavior = pop_with_default(params,
+                                                                  'seq2seq_encoder_fallback_behavior', 'crash')
         super(TextTrainer, self).__init__(params)
 
         self.name = "TextTrainer"

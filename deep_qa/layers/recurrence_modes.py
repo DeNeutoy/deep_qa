@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 from keras import backend as K
 
+from ..common.params import pop_with_default
 
 class FixedRecurrence:
     '''
@@ -13,7 +14,7 @@ class FixedRecurrence:
     '''
     def __init__(self, memory_network, params: Dict[str, Any]):
 
-        self.num_memory_layers = params.pop("num_memory_layers", 1)
+        self.num_memory_layers = pop_with_default(params, "num_memory_layers", 1)
         self.memory_network = memory_network
 
     def __call__(self, encoded_question, current_memory, encoded_background):

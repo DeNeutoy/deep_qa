@@ -3,7 +3,7 @@ from typing import Any, Dict
 from keras.layers import Dense, Input, TimeDistributed
 from overrides import overrides
 
-from ...common.params import get_choice
+from ...common.params import get_choice, pop_with_default
 from ...data.instances.sequence_tagging import concrete_instances
 from ...training.text_trainer import TextTrainer
 from ...training.models import DeepQaModel
@@ -24,7 +24,7 @@ class SimpleTagger(TextTrainer):
         which in turn defines things like how the input data is formatted and tokenized.
     """
     def __init__(self, params: Dict[str, Any]):
-        self.num_stacked_rnns = params.pop('num_stacked_rnns', 1)
+        self.num_stacked_rnns = pop_with_default(params, 'num_stacked_rnns', 1)
         instance_type_choice = get_choice(params, "instance_type", concrete_instances.keys())
         self.instance_type = concrete_instances[instance_type_choice]
         super(SimpleTagger, self).__init__(params)

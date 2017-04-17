@@ -3,6 +3,7 @@ from overrides import overrides
 
 from keras.layers import Input
 
+from ...common.params import pop_with_default
 from ...data.instances.entailment.snli_instance import SnliInstance
 from ...training.text_trainer import TextTrainer
 from ...layers.entailment_models import DecomposableAttentionEntailment
@@ -42,9 +43,9 @@ class DecomposableAttention(TextTrainer):
         in the entailment MLPs, etc.  See that class for a complete description of options here.
     '''
     def __init__(self, params: Dict[str, Any]):
-        self.num_seq2seq_layers = params.pop('num_seq2seq_layers', 0)
-        self.share_encoders = params.pop('share_encoders', True)
-        self.decomposable_attention_params = params.pop('decomposable_attention_params', {})
+        self.num_seq2seq_layers = pop_with_default(params, 'num_seq2seq_layers', 0)
+        self.share_encoders = pop_with_default(params, 'share_encoders', True)
+        self.decomposable_attention_params = pop_with_default(params, 'decomposable_attention_params', {})
         super(DecomposableAttention, self).__init__(params)
 
     @overrides

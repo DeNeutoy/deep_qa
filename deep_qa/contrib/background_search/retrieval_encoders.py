@@ -10,7 +10,7 @@ import spacy
 import tqdm
 
 from ...common.models import get_submodel
-from ...common.params import get_choice, replace_none
+from ...common.params import get_choice, replace_none, pop_with_logging
 from ...common import util
 from ...data.instances.sentence_selection.sentence_selection_instance import SentenceSelectionInstance
 from ...models import concrete_models
@@ -74,7 +74,7 @@ class BagOfWordsRetrievalEncoder(RetrievalEncoder):
     we can officially retire ``bow_lsh.py``.
     """
     def __init__(self, params: Dict[str, Any]):
-        embeddings_file = params.pop('embeddings_file')
+        embeddings_file = pop_with_logging(params, 'embeddings_file')
         self.en_nlp = spacy.load('en')
 
         # These fields will get set in the call to `read_embeddings_file`.
@@ -152,7 +152,7 @@ class SentenceSelectionRetrievalEncoder(RetrievalEncoder):
         This is the parameter file used to train the sentence selection model with ``run_model.py``.
     """
     def __init__(self, params: Dict[str, Any]):
-        model_param_file = params.pop('model_param_file')
+        model_param_file = pop_with_logging(params, 'model_param_file')
         model_params = pyhocon.ConfigFactory.parse_file(model_param_file)
         model_params = replace_none(model_params)
         model_type = get_choice(model_params, 'model_class', concrete_models.keys())

@@ -6,6 +6,7 @@ from keras.layers import Input
 from overrides import overrides
 
 from ...common.models import get_submodel
+from ...common.params import pop_with_default, pop_with_logging
 from ...data.instances.reading_comprehension import McQuestionPassageInstance
 from ...layers.attention import Attention
 from ...layers.backend import Envelope
@@ -84,14 +85,14 @@ class MultipleChoiceBidaf(TextTrainer):
     """
     # pylint: disable=protected-access
     def __init__(self, params: Dict[str, Any]):
-        bidaf_params = params.pop('bidaf_params')
+        bidaf_params = pop_with_logging(params, 'bidaf_params')
         params['tokenizer'] = deepcopy(bidaf_params.get('tokenizer', {}))
         self._bidaf_model = BidirectionalAttentionFlow(bidaf_params)
         self._bidaf_model.load_model()
-        self.train_bidaf = params.pop('train_bidaf', False)
-        self.num_options = params.pop('num_options', None)
-        self.num_option_words = params.pop('num_option_words', None)
-        self.similarity_function_params = params.pop('similarity_function', {'type': 'bilinear'})
+        self.train_bidaf = pop_with_default(params, 'train_bidaf', False)
+        self.num_options = pop_with_default(params, 'num_options', None)
+        self.num_option_words = pop_with_default(params, 'num_option_words', None)
+        self.similarity_function_params = pop_with_default(params, 'similarity_function', {'type': 'bilinear'})
         if K.backend() == 'theano':
             # This is a total hack.  Sorry.  But there's some crazy error in using the loaded BiDAF
             # model in theano that's related to K.in_train_phase(), which is only relevant for

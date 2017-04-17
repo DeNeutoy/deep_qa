@@ -4,6 +4,7 @@ import tensorflow as tf
 from keras import backend as K
 from keras.regularizers import l1
 
+from ..common.params import pop_with_default
 from .masked_layer import MaskedLayer
 
 
@@ -66,17 +67,17 @@ class AdaptiveStep(MaskedLayer):
     probabilities, states and outputs from a timestep t's contribution if they have already reached
     1 - epsilon at a timestep s < t.
     '''
-    def __init__(self, memory_network, layer_params: Dict[str, Any],
+    def __init__(self, memory_network, params: Dict[str, Any],
                  initialization='glorot_uniform', name='adaptive_layer', **kwargs):
         # Dictates the value at which we halt the memory network steps (1 - epsilon).
         # Necessary so that the network can learn to halt after one step. If we didn't have
         # this, the first halting value is < 1 in practise as it is the output of a sigmoid.
-        self.epsilon = layer_params.pop("epsilon", 0.01)
+        self.epsilon = pop_with_default(params, "epsilon", 0.01)
         self.one_minus_epsilon = tf.constant(1.0 - self.epsilon, name='one_minus_epsilon')
         # Used to bound the number of memory network hops we do. Necessary to prevent
         # the network from learning that the loss it achieves can be minimised by
         # simply not stopping.
-        self.max_val = layer_params.pop("max_computation", 10)
+        self.max_val = pop_with_default(params, "max_computation", 10)
         self.max_computation = tf.constant(self.max_val, tf.float32, name='max_computation')
         # Regularisation coefficient for the ponder cost. In order to dictate how many steps you want
         # to take, we add |number of steps| to the training objective, in the same way as you might add
@@ -84,7 +85,7 @@ class AdaptiveStep(MaskedLayer):
         # of steps it takes. This parameter is _extremely_ sensitive. Consider as well that this parameter
         # will affect the training time of your model, as it will take more steps if it is small. Bear this
         # in mind when doing grid searches over this parameter.
-        self.ponder_cost_strength = layer_params.pop("ponder_cost_strength", 0.05)
+        self.ponder_cost_strength = pop_with_default(params, "ponder_cost_strength", 0.05)
         self.memory_network = memory_network
         self.init = initialization
         self.name = name

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy
 
-from ...common.params import assert_params_empty, get_choice_with_default
+from ...common.params import assert_params_empty, get_choice_with_default, pop_with_default
 from .nearest_neighbor_algorithms import nearest_neighbor_algorithms
 from .retrieval_encoders import retrieval_encoders
 
@@ -42,13 +42,13 @@ class VectorBasedRetrieval:
     ``retrieval.get_nearest_neighbors``.
     """
     def __init__(self, params: Dict[str, Any]):
-        self.serialization_prefix = params.pop('serialization_prefix', 'retrieval')
+        self.serialization_prefix = pop_with_default(params, 'serialization_prefix', 'retrieval')
 
-        encoder_params = params.pop('encoder', {})
+        encoder_params = pop_with_default(params, 'encoder', {})
         encoder_choice = get_choice_with_default(encoder_params, 'type', list(retrieval_encoders.keys()))
         self.encoder = retrieval_encoders[encoder_choice](encoder_params)
 
-        nearest_neighbors_params = params.pop('nearest_neighbors', {})
+        nearest_neighbors_params = pop_with_default(params, 'nearest_neighbors', {})
         nearest_neighbors_choice = get_choice_with_default(nearest_neighbors_params, 'type',
                                                            list(nearest_neighbor_algorithms.keys()))
         self.nearest_neighbors = nearest_neighbor_algorithms[nearest_neighbors_choice](nearest_neighbors_params)

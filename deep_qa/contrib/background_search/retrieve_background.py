@@ -16,7 +16,7 @@ import pyhocon
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../.."))
 from deep_qa.common.checks import ensure_pythonhashseed_set
-from deep_qa.common.params import replace_none
+from deep_qa.common.params import replace_none, pop_with_default, pop_with_logging
 from deep_qa.common import util
 from deep_qa.contrib.background_search.vector_based_retrieval import VectorBasedRetrieval
 
@@ -98,13 +98,13 @@ def main():
     params = pyhocon.ConfigFactory.parse_file(param_file)
     params = replace_none(params)
 
-    retrieval_params = params.pop('retrieval')
-    corpus_file = params.pop('corpus', None)
-    question_params = params.pop('questions')
-    question_file = question_params.pop('file')
-    question_format = question_params.pop('format', 'sentence')
-    num_neighbors = params.pop('num_neighbors', 50)
-    output_file = params.pop('output', None)
+    retrieval_params = pop_with_logging(params, 'retrieval')
+    corpus_file = pop_with_default(params, 'corpus', None)
+    question_params = pop_with_logging(params, 'questions')
+    question_file = pop_with_logging(question_params, 'file')
+    question_format = pop_with_default(question_params, 'format', 'sentence')
+    num_neighbors = pop_with_default(params, 'num_neighbors', 50)
+    output_file = pop_with_default(params, 'output', None)
     if output_file is None:
         output_file = question_file.rsplit('.', 1)[0] + ".retrieved_background.tsv"
 

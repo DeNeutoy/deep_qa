@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 import numpy
 from sklearn.neighbors import LSHForest
 
+from ...common.params import pop_with_default
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
@@ -47,7 +48,7 @@ class ScikitLearnLsh(NearestNeighborAlgorithm):
         Used to initialize the LSHForest, so that runs are consistent.
     """
     def __init__(self, params: Dict[str, Any]):
-        random_state = params.pop('random_state', 12345)
+        random_state = pop_with_default(params, 'random_state', 12345)
         self.lsh = LSHForest(random_state=random_state)
 
     def fit(self, vectors: List[numpy.array]):

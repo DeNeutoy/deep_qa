@@ -1,8 +1,27 @@
 from typing import Any, Dict, List
 
+import logging
 import pyhocon
 
 from .checks import ConfigurationError
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+PARAMETER = 60
+logging.addLevelName(PARAMETER, "PARAM")
+
+
+def param(self, message, *args, **kws):
+    """
+    Add a method to logger which allows us
+    to always log parameters unless you set the logging
+    level to be higher than 60 (which is higher than the
+    standard highest level of 50, corresponding to WARNING).
+    """
+    # Logger takes its '*args' as 'args'.
+    if self.isEnabledFor(PARAMETER):
+        self._log(PARAMETER, message, args, **kws) # pylint: disable=protected-access
+logging.Logger.param = param
 
 
 def _get_choice_error_message(value: Any, choices: List[Any], name: str=None) -> str:
@@ -10,6 +29,28 @@ def _get_choice_error_message(value: Any, choices: List[Any], name: str=None) ->
         return '%s not in acceptable choices for %s: %s' % (value, name, str(choices))
     else:
         return '%s not in acceptable choices: %s' % (value, str(choices))
+
+
+def pop_with_logging(params: Dict[str, Any], key: str):
+    """
+    Performs the functionality associated with dict.pop(key) but with parameter
+    logging. This is required because pop_with_default may receive a default value
+    of None, which means we can't check for it not being passed.
+    """
+    value = params.pop(key)
+    logger.param(key + " : " + str(value))
+    return value
+
+
+def pop_with_default(params: Dict[str, Any], key: str, default: Any):
+
+    """
+    Performs the functionality associated with dict.pop(key, default) but with parameter
+    logging.
+    """
+    value = params.pop(key, default)
+    logger.param(key + " : " + str(value))
+    return value
 
 
 def get_choice(params: Dict[str, Any], key: str, choices: List[Any], name: str=None):
@@ -21,7 +62,8 @@ def get_choice(params: Dict[str, Any], key: str, choices: List[Any], name: str=N
     Note that this _pops_ the key from params, modifying the dictionary, consistent with how
     parameters are processed in this codebase.
     """
-    value = params.pop(key)
+
+    value = pop_with_logging(params, key)
     if value not in choices:
         raise ConfigurationError(_get_choice_error_message(value, choices, name))
     return value

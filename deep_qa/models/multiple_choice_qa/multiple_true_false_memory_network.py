@@ -4,6 +4,7 @@ from overrides import overrides
 import numpy
 from keras.layers import Layer, TimeDistributed
 
+from ...common.params import pop_with_default
 from ..memory_networks.memory_network import MemoryNetwork
 from ...data.instances.text_classification import TextClassificationInstance
 from ...data.instances.multiple_choice_qa import MultipleTrueFalseInstance
@@ -35,7 +36,7 @@ class MultipleTrueFalseMemoryNetwork(MemoryNetwork):
         # Upper limit on number of options per question in the training data. Ignored during
         # testing (we use the value set at training time, either from this parameter or from a
         # loaded model).  If this is not set, we'll calculate a max length from the data.
-        self.num_options = params.pop('num_options', None)
+        self.num_options = pop_with_default(params, 'num_options', None)
 
         super(MultipleTrueFalseMemoryNetwork, self).__init__(params)
 

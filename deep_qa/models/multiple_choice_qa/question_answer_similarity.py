@@ -8,6 +8,7 @@ from ...data.instances.multiple_choice_qa import QuestionAnswerInstance
 from ...layers.wrappers import EncoderWrapper
 from ...layers.attention import Attention
 from ...training import TextTrainer
+from ...common.params import pop_with_default
 from ...training.models import DeepQaModel
 
 
@@ -22,11 +23,11 @@ class QuestionAnswerSimilarity(TextTrainer):
     choice.  There is no notion of external memory or background knowledge here.
     """
     def __init__(self, params: Dict[str, Any]):
-        self.num_hidden_layers = params.pop('num_hidden_layers', 1)
-        self.hidden_layer_width = params.pop('hidden_layer_width', 50)
-        self.hidden_layer_activation = params.pop('hidden_layer_activation', 'relu')
-        self.max_answer_length = params.pop('max_answer_length', None)
-        self.num_options = params.pop('num_options', None)
+        self.num_hidden_layers = pop_with_default(params, 'num_hidden_layers', 1)
+        self.hidden_layer_width = pop_with_default(params, 'hidden_layer_width', 50)
+        self.hidden_layer_activation = pop_with_default(params, 'hidden_layer_activation', 'relu')
+        self.max_answer_length = pop_with_default(params, 'max_answer_length', None)
+        self.num_options = pop_with_default(params, 'num_options', None)
         super(QuestionAnswerSimilarity, self).__init__(params)
 
     @overrides
