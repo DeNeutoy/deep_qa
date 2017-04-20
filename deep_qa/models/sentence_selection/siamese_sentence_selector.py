@@ -8,7 +8,7 @@ from ...layers.attention import Attention
 from ...layers.wrappers import EncoderWrapper
 from ...training import TextTrainer
 from ...training.models import DeepQaModel
-from ...common.params import pop_with_default
+from ...common.params import Params
 
 
 class SiameseSentenceSelector(TextTrainer):
@@ -33,11 +33,11 @@ class SiameseSentenceSelector(TextTrainer):
         Whether or not to encode the sentences and the question with the same
         hidden seq2seq layers, or have different ones for each.
     """
-    def __init__(self, params: Dict[str, Any]):
-        self.num_hidden_seq2seq_layers = pop_with_default(params, 'num_hidden_seq2seq_layers', 2)
-        self.share_hidden_seq2seq_layers = pop_with_default(params, 'share_hidden_seq2seq_layers', False)
-        self.num_question_words = pop_with_default(params, 'num_question_words', None)
-        self.num_sentences = pop_with_default(params, 'num_sentences', None)
+    def __init__(self, params: "Params"):
+        self.num_hidden_seq2seq_layers = params.pop('num_hidden_seq2seq_layers', 2)
+        self.share_hidden_seq2seq_layers = params.pop('share_hidden_seq2seq_layers', False)
+        self.num_question_words = params.pop('num_question_words', None)
+        self.num_sentences = params.pop('num_sentences', None)
         super(SiameseSentenceSelector, self).__init__(params)
 
     @overrides
@@ -114,7 +114,7 @@ class SiameseSentenceSelector(TextTrainer):
         # to get the cosine similarities of each sesntence with the question.
         # shape: (batch size, num_sentences)
         attention_name = 'question_sentences_similarity'
-        similarity_params = {"type": "cosine_similarity"}
+        similarity_params = Params({"type": "cosine_similarity"})
         sentence_probabilities = Attention(name=attention_name,
                                            similarity_function=similarity_params)([encoded_question,
                                                                                    encoded_sentences])

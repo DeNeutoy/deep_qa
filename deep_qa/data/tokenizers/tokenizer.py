@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 from keras.layers import Layer
 from ..data_indexer import DataIndexer
@@ -14,7 +14,7 @@ class Tokenizer:
     tensors in the model (e.g., a sentence could have shape (num_words,), (num_characters,), or
     (num_words, num_characters)).
     """
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: "Params"):
         # This class does not take any parameters, but for consistency in the API we take a params
         # dict as an argument.
         if len(params.keys()) != 0:

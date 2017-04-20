@@ -4,7 +4,6 @@ from overrides import overrides
 from keras import backend as K
 from keras.layers import Concatenate, Layer
 
-from ...common.params import pop_with_default
 from .tokenizer import Tokenizer
 from .word_processor import WordProcessor
 from ..data_indexer import DataIndexer
@@ -30,8 +29,8 @@ class WordAndCharacterTokenizer(Tokenizer):
     documentation there for some more info).  If you do not give a ``"word"`` key in the
     ``encoder`` dict, we'll create a new encoder using the ``"default"`` parameters.
     """
-    def __init__(self, params: Dict[str, Any]):
-        self.word_processor = WordProcessor(pop_with_default(params, 'processor', {}))
+    def __init__(self, params: "Params"):
+        self.word_processor = WordProcessor(params.pop('processor', {}))
         super(WordAndCharacterTokenizer, self).__init__(params)
 
     @overrides

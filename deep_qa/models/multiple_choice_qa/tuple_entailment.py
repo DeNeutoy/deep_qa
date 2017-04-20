@@ -1,10 +1,10 @@
-from typing import Dict, Any, List
+from typing import Dict, List
 
 from overrides import overrides
 
 from keras.layers import Input
 
-from ...common.params import pop_with_default
+from ...common.params import Params  # pylint disable: unused-import
 from ...data.dataset import TextDataset
 from ...data.instances.multiple_choice_qa.question_answer_instance import QuestionAnswerInstance
 from ...data.instances.text_classification.tuple_instance import TupleInstance
@@ -21,12 +21,12 @@ class MultipleChoiceTupleEntailmentModel(TextTrainer):
     uses a tuple alignment entailment model to obtain a probability distribution over the answer options
     based on how well they align with the background tuples, given the question text.
     '''
-    def __init__(self, params: Dict[str, Any]):
-        self.entailment_model_params = pop_with_default(params, 'entailment_model', {})
-        self.max_answer_length = pop_with_default(params, 'max_answer_length', None)
-        self.max_knowledge_length = pop_with_default(params, 'max_knowledge_length', None)
-        self.num_slots = pop_with_default(params, 'num_tuple_slots', 3)
-        self.num_options = pop_with_default(params, 'num_answer_options', 4)
+    def __init__(self, params: "Params"):
+        self.entailment_model_params = params.pop('entailment_model', {})
+        self.max_answer_length = params.pop('max_answer_length', None)
+        self.max_knowledge_length = params.pop('max_knowledge_length', None)
+        self.num_slots = params.pop('num_tuple_slots', 3)
+        self.num_options = params.pop('num_answer_options', 4)
         super(MultipleChoiceTupleEntailmentModel, self).__init__(params)
 
         self.name = 'MultipleChoiceTupleEntailmentModel'

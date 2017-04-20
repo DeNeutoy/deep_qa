@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Dict
 from overrides import overrides
 from keras.layers import Input
 
@@ -8,7 +8,6 @@ from ...layers import OptionAttentionSum
 from ...layers.attention import Attention
 from ...training import TextTrainer
 from ...training.models import DeepQaModel
-from ...common.params import pop_with_default
 
 
 class AttentionSumReader(TextTrainer):
@@ -21,13 +20,13 @@ class AttentionSumReader(TextTrainer):
     document, and it then selects the option with the highest summed or mean
     weight as the answer.
     """
-    def __init__(self, params: Dict[str, Any]):
-        self.max_question_length = pop_with_default(params, 'max_question_length', None)
-        self.max_passage_length = pop_with_default(params, 'max_passage_length', None)
-        self.max_option_length = pop_with_default(params, 'max_option_length', None)
-        self.num_options = pop_with_default(params, 'num_options', None)
+    def __init__(self, params: "Params"):
+        self.max_question_length = params.pop('max_question_length', None)
+        self.max_passage_length = params.pop('max_passage_length', None)
+        self.max_option_length = params.pop('max_option_length', None)
+        self.num_options = params.pop('num_options', None)
         # either "mean" or "sum"
-        self.multiword_option_mode = pop_with_default(params, 'multiword_option_mode', "mean")
+        self.multiword_option_mode = params.pop('multiword_option_mode', "mean")
         super(AttentionSumReader, self).__init__(params)
 
     @overrides

@@ -6,7 +6,9 @@ from keras.models import Model, load_model
 
 from deep_qa.layers.attention import MatrixAttention
 from deep_qa.layers.wrappers import OutputMask
+from deep_qa.common.params import Params
 from ...common.test_case import DeepQaTestCase
+
 
 class TestMatrixAttentionLayer(DeepQaTestCase):
     def test_call_works_on_simple_input(self):
@@ -30,7 +32,7 @@ class TestMatrixAttentionLayer(DeepQaTestCase):
         embedding_dim = 3
         sentence_1_embedding = Input(shape=(sentence_1_length, embedding_dim), dtype='float32')
         sentence_2_embedding = Input(shape=(sentence_2_length, embedding_dim,), dtype='float32')
-        similarity_function_params = {'type': 'linear', 'combination': 'x,y,x*y'}
+        similarity_function_params = Params({'type': 'linear', 'combination': 'x,y,x*y'})
         attention_layer = MatrixAttention(similarity_function=similarity_function_params)
         attention = attention_layer([sentence_1_embedding, sentence_2_embedding])
         attention = Dense(2)(attention)

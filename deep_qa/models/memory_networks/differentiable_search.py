@@ -3,14 +3,13 @@ import logging
 import pickle
 
 from itertools import zip_longest
-from typing import Any, Dict, List
+from typing import Dict, List  # pylint disable: unused-import
 
 from overrides import overrides
 import numpy
 
 from sklearn.neighbors import LSHForest
 
-from ...common.params import pop_with_default
 from ...data.dataset import TextDataset
 from ...data.instances.wrappers.background_instance import BackgroundInstance
 from ...data.instances.text_classification.text_classification_instance import TextClassificationInstance
@@ -37,28 +36,28 @@ class DifferentiableSearchMemoryNetwork(MemoryNetwork):
     file, using the standard MemoryNetwork code.  It is only in subsequent epochs that we
     will override that and use our differentiable search to find background knowledge.
     """
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: "Params"):
         # Location of corpus to use for background knowledge search. This corpus is assumed to be
         # gzipped, one sentence per line.
-        self.corpus_path = pop_with_default(params, 'corpus_path', None)
+        self.corpus_path = params.pop('corpus_path', None)
 
         # Number of background sentences to collect for each input.
-        self.num_background = pop_with_default(params, 'num_background', 10)
+        self.num_background = params.pop('num_background', 10)
         # Wait this many epochs before running differentiable search. This lets you train with the
         # base memory network code using external background knowledge for a time, then, once the
         # encoder is trained sufficiently, you can turn on the differentiable search.
-        self.num_epochs_delay = pop_with_default(params, 'num_epochs_delay', 10)
+        self.num_epochs_delay = params.pop('num_epochs_delay', 10)
 
         # Number of epochs we wait in between re-encoding the corpus.
         # TODO(matt): consider only re-encoding at early stopping, instead of a
         # number-of-epoch-based parameter.
-        self.num_epochs_per_encoding = pop_with_default(params, 'num_epochs_per_encoding', 2)
+        self.num_epochs_per_encoding = params.pop('num_epochs_per_encoding', 2)
 
         # Only meaningful if you are loading a model.  When loading, should we load a pickled LSH,
         # or should we re-initialize the LSH from the input corpus?  Note that if you give a corpus
         # path, and you load a saved LSH that was constructed from a _different_ corpus, you could
         # end up with really weird behavior.
-        self.load_saved_lsh = pop_with_default(params, 'load_saved_lsh', False)
+        self.load_saved_lsh = params.pop('load_saved_lsh', False)
 
         # Now that we've popped our parameters, we can call the superclass constructor.
         super(DifferentiableSearchMemoryNetwork, self).__init__(params)

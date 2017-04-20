@@ -9,7 +9,6 @@ from keras.models import model_from_json
 from keras.callbacks import LambdaCallback, TensorBoard, EarlyStopping, CallbackList, ModelCheckpoint
 
 from ..common.checks import ConfigurationError
-from ..common.params import pop_with_default
 from ..data.dataset import Dataset, IndexedDataset
 from ..data.instances.instance import Instance
 from ..layers.wrappers import OutputMask
@@ -129,46 +128,46 @@ class Trainer:
         Preferred backend to use for training. If a different backend is detected, we still train
         but we also warn the user.
     """
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: "Params"):
         self.name = "Trainer"
 
         # Data specification parameters.
-        self.train_files = pop_with_default(params, 'train_files', None)
-        self.validation_files = pop_with_default(params, 'validation_files', None)
-        self.test_files = pop_with_default(params, 'test_files', None)
-        self.max_training_instances = pop_with_default(params, 'max_training_instances', None)
-        self.max_validation_instances = pop_with_default(params, 'max_validation_instances', None)
-        self.max_test_instances = pop_with_default(params, 'max_test_instances', None)
+        self.train_files = params.pop('train_files', None)
+        self.validation_files = params.pop('validation_files', None)
+        self.test_files = params.pop('test_files', None)
+        self.max_training_instances = params.pop('max_training_instances', None)
+        self.max_validation_instances = params.pop('max_validation_instances', None)
+        self.max_test_instances = params.pop('max_test_instances', None)
 
         # Data generator parameters.
-        self.train_steps_per_epoch = pop_with_default(params, 'train_steps_per_epoch', None)
-        self.validation_steps = pop_with_default(params, 'train_steps_per_epoch', None)
-        self.test_steps = pop_with_default(params, 'train_steps_per_epoch', None)
+        self.train_steps_per_epoch = params.pop('train_steps_per_epoch', None)
+        self.validation_steps = params.pop('train_steps_per_epoch', None)
+        self.test_steps = params.pop('train_steps_per_epoch', None)
 
         # Model serialization parameters.
-        self.save_models = pop_with_default(params, 'save_models', True)
-        self.model_prefix = pop_with_default(params, 'model_serialization_prefix', None)
+        self.save_models = params.pop('save_models', True)
+        self.model_prefix = params.pop('model_serialization_prefix', None)
         if self.model_prefix:
             parent_directory = os.path.dirname(self.model_prefix)
             os.makedirs(parent_directory, exist_ok=True)
 
         # `model.fit()` parameters.
-        self.validation_split = pop_with_default(params, 'validation_split', 0.1)
-        self.batch_size = pop_with_default(params, 'batch_size', 32)
-        self.num_epochs = pop_with_default(params, 'num_epochs', 20)
-        self.optimizer = optimizer_from_params(pop_with_default(params, 'optimizer', 'adam'))
-        self.loss = pop_with_default(params, 'loss', 'categorical_crossentropy')
-        self.metrics = pop_with_default(params, 'metrics', ['accuracy'])
-        self.validation_metric = pop_with_default(params, 'validation_metric', 'val_acc')
-        self.patience = pop_with_default(params, 'patience', 1)
-        self.fit_kwargs = pop_with_default(params, 'fit_kwargs', {})
+        self.validation_split = params.pop('validation_split', 0.1)
+        self.batch_size = params.pop('batch_size', 32)
+        self.num_epochs = params.pop('num_epochs', 20)
+        self.optimizer = optimizer_from_params(params.pop('optimizer', 'adam'))
+        self.loss = params.pop('loss', 'categorical_crossentropy')
+        self.metrics = params.pop('metrics', ['accuracy'])
+        self.validation_metric = params.pop('validation_metric', 'val_acc')
+        self.patience = params.pop('patience', 1)
+        self.fit_kwargs = params.pop('fit_kwargs', {})
 
         # Debugging / logging / misc parameters.
-        self.tensorboard_log = pop_with_default(params, 'tensorboard_log', None)
-        self.tensorboard_histogram_freq = pop_with_default(params, 'tensorboard_histogram_freq', 0)
-        self.debug_params = pop_with_default(params, 'debug', {})
-        self.show_summary_with_masking = pop_with_default(params, 'show_summary_with_masking_info', False)
-        self.preferred_backend = pop_with_default(params, 'preferred_backend', None)
+        self.tensorboard_log = params.pop('tensorboard_log', None)
+        self.tensorboard_histogram_freq = params.pop('tensorboard_histogram_freq', 0)
+        self.debug_params = params.pop('debug', {})
+        self.show_summary_with_masking = params.pop('show_summary_with_masking_info', False)
+        self.preferred_backend = params.pop('preferred_backend', None)
         if self.preferred_backend and self.preferred_backend.lower() != K.backend():
             warning_message = self.__make_backend_warning(self.preferred_backend.lower(), K.backend())
             logger.warning(warning_message)

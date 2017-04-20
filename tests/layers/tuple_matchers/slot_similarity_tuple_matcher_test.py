@@ -8,6 +8,7 @@ from scipy.stats import logistic
 
 from deep_qa.layers.tuple_matchers import SlotSimilarityTupleMatcher
 from deep_qa.tensors.similarity_functions.cosine_similarity import CosineSimilarity
+from deep_qa.common.params import Params
 from ...common.test_case import DeepQaTestCase
 
 
@@ -29,7 +30,7 @@ class TestSlotSimilarityTupleMatcher(DeepQaTestCase):
 
     def test_general_case(self):
 
-        match_layer = SlotSimilarityTupleMatcher({"type": "cosine_similarity"},
+        match_layer = SlotSimilarityTupleMatcher(Params({"type": "cosine_similarity"}),
                                                  self.num_hidden_layers,
                                                  self.hidden_layer_width,
                                                  hidden_layer_activation=self.hidden_layer_activation)
@@ -61,7 +62,7 @@ class TestSlotSimilarityTupleMatcher(DeepQaTestCase):
         tuple2 = K.variable(self.tuple2)
         mask2 = K.variable(numpy.asarray([[0, 0, 0]]))
         calculated_mask_exclude = K.eval(
-                SlotSimilarityTupleMatcher({"type": "cosine_similarity"},
+                SlotSimilarityTupleMatcher(Params({"type": "cosine_similarity"}),
                                            self.num_hidden_layers,
                                            self.hidden_layer_width,
                                            hidden_layer_activation=self.hidden_layer_activation)
@@ -73,7 +74,7 @@ class TestSlotSimilarityTupleMatcher(DeepQaTestCase):
         # Here, since tuple2 is valid, we want to return a mask value of 1 for this pair
         mask2 = K.variable(numpy.asarray([[0, 1, 0]]))
         calculated_mask_include = K.eval(
-                SlotSimilarityTupleMatcher({"type": "cosine_similarity"},
+                SlotSimilarityTupleMatcher(Params({"type": "cosine_similarity"}),
                                            self.num_hidden_layers,
                                            self.hidden_layer_width,
                                            hidden_layer_activation=self.hidden_layer_activation)
@@ -87,7 +88,7 @@ class TestSlotSimilarityTupleMatcher(DeepQaTestCase):
         masked_tuple2 = mask_layer(self.tuple2_input)
         # Add a set of paddings to slot 1 in tuple 2
         self.tuple2[:, 1, :] = numpy.zeros(4)
-        match_layer = SlotSimilarityTupleMatcher({"type": "cosine_similarity"},
+        match_layer = SlotSimilarityTupleMatcher(Params({"type": "cosine_similarity"}),
                                                  self.num_hidden_layers,
                                                  self.hidden_layer_width,
                                                  hidden_layer_activation=self.hidden_layer_activation)

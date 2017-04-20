@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Dict
 from overrides import overrides
 from keras.layers import Input, Dropout, Concatenate
 from keras.callbacks import LearningRateScheduler
@@ -10,7 +10,7 @@ from ...layers.backend import BatchDot
 from ...layers.attention import Attention, MaskedSoftmax, GatedAttention
 from ...layers import OptionAttentionSum, Overlap, L1Normalize
 from ...layers import VectorMatrixSplit, BiGRUIndexSelector
-from ...common.params import pop_with_default
+from ...common.params import Params
 from ...training.text_trainer import TextTrainer
 from ...training.models import DeepQaModel
 
@@ -56,25 +56,25 @@ class GatedAttentionReader(TextTrainer):
         indicates, for each word in the document, whether it appears in the query
         and has been shown to improve reading comprehension performance.
     """
-    def __init__(self, params: Dict[str, Any]):
-        self.max_question_length = pop_with_default(params, 'max_question_length', None)
-        self.max_passage_length = pop_with_default(params, 'max_passage_length', None)
-        self.max_option_length = pop_with_default(params, 'max_option_length', None)
-        self.num_options = pop_with_default(params, 'num_options', None)
+    def __init__(self, params: Params):
+        self.max_question_length = params.pop('max_question_length', None)
+        self.max_passage_length = params.pop('max_passage_length', None)
+        self.max_option_length = params.pop('max_option_length', None)
+        self.num_options = params.pop('num_options', None)
         # either "mean" or "sum"
-        self.multiword_option_mode = pop_with_default(params, 'multiword_option_mode', "mean")
+        self.multiword_option_mode = params.pop('multiword_option_mode', "mean")
         # number of gated attention layers to use
-        self.num_gated_attention_layers = pop_with_default(params, 'num_gated_attention_layers', 3)
+        self.num_gated_attention_layers = params.pop('num_gated_attention_layers', 3)
         # gating function to use, either "*", "+", or "|"
-        self.gating_function = pop_with_default(params, 'gating_function', "*")
+        self.gating_function = params.pop('gating_function', "*")
         # dropout proportion after each gated attention layer.
-        self.gated_attention_dropout = pop_with_default(params, 'gated_attention_dropout', 0.3)
+        self.gated_attention_dropout = params.pop('gated_attention_dropout', 0.3)
         # If you are using the model on a cloze (fill in the blank) dataset,
         # indicate what token indicates the blank.
-        self.cloze_token = pop_with_default(params, 'cloze_token', None)
+        self.cloze_token = params.pop('cloze_token', None)
         self.cloze_token_index = None
         # use the question document common word feature
-        self.use_qd_common_feature = pop_with_default(params, 'qd_common_feature', True)
+        self.use_qd_common_feature = params.pop('qd_common_feature', True)
         super(GatedAttentionReader, self).__init__(params)
 
     @overrides

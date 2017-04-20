@@ -6,11 +6,10 @@ Network hops.
 '''
 
 from collections import OrderedDict
-from typing import Any, Dict
 from keras.layers.wrappers import Bidirectional
 from keras.layers.recurrent import GRU
 
-from ..common.params import pop_with_logging
+from ..common.params import Params  # pylint disable: unused-import
 from .additive import Additive
 from .wrappers.encoder_wrapper import EncoderWrapper
 
@@ -24,9 +23,9 @@ class IndependentKnowledgeEncoder:
     Therefore, to apply the question encoder to all of the background knowledge, we simply
     TimeDistribute it. The 'time' dimension is assumed to be 1.
     '''
-    def __init__(self, params: Dict[str, Any]):
-        self.question_encoder = pop_with_logging(params, 'question_encoder')
-        self.name = pop_with_logging(params, 'name')
+    def __init__(self, params: "Params"):
+        self.question_encoder = params.pop('question_encoder')
+        self.name = params.pop('name')
         self.encoder_wrapper = EncoderWrapper(self.question_encoder, name=self.name)
 
     def __call__(self, knowledge_embedding):
@@ -38,7 +37,7 @@ class TemporalKnowledgeEncoder(IndependentKnowledgeEncoder):
     This class implements the "temporal encoding" from the end-to-end memory networks paper, which
     adds a learned vector to the encoding of each time step in the memory.
     """
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: "Params"):
         super(TemporalKnowledgeEncoder, self).__init__(params)
         self.additive_layer = Additive(name=self.name + "_additive")
 
@@ -72,10 +71,10 @@ class BiGRUKnowledgeEncoder(IndependentKnowledgeEncoder):
     background knowledge related to each answer. If this is the case, then we again TimeDistribute
     the BiDirectional GRU to apply this to every set of background knowledge.
     '''
-    def __init__(self, params: Dict[str, Any]):
-        self.knowledge_length = pop_with_logging(params, 'knowledge_length')
-        self.encoding_dim = pop_with_logging(params, 'encoding_dim')
-        self.has_multiple_backgrounds = pop_with_logging(params, 'has_multiple_backgrounds')
+    def __init__(self, params: "Params"):
+        self.knowledge_length = params.pop('knowledge_length')
+        self.encoding_dim = params.pop('encoding_dim')
+        self.has_multiple_backgrounds = params.pop('has_multiple_backgrounds')
         super(BiGRUKnowledgeEncoder, self).__init__(params)
         # TODO: allow the merge_mode of the GRU/other parameters to be passed as arguments.
         self.bi_gru = Bidirectional(GRU(self.encoding_dim, return_sequences=True),

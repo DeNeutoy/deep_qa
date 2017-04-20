@@ -8,6 +8,7 @@ from deep_qa.layers import TimeDistributedEmbedding
 from deep_qa.layers.wrappers import EncoderWrapper, TimeDistributedWithMask, OutputMask
 from deep_qa.layers.tuple_matchers import SlotSimilarityTupleMatcher, WordOverlapTupleMatcher
 from deep_qa.training.models import DeepQaModel
+from deep_qa.common.params import Params
 from ...common.test_case import DeepQaTestCase
 
 class TestTimeDistributedWithMask(DeepQaTestCase):
@@ -29,7 +30,7 @@ class TestTimeDistributedWithMask(DeepQaTestCase):
         # Shape of input_mask to the tuple matcher is  [(batch size, 2, 3, 4), (batch size, 2, 3, 4)]
         # Expected output mask shape (batch_size, 2, 3)
         time_distributed = TimeDistributedWithMask(TimeDistributedWithMask(
-                SlotSimilarityTupleMatcher({"type": "cosine_similarity"})))
+                SlotSimilarityTupleMatcher(Params({"type": "cosine_similarity"}))))
 
         time_distributed_output = time_distributed([encoded_tuple, encoded_tuple_2])
         mask_output = OutputMask()(time_distributed_output)
