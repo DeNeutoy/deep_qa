@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Any
 
 from keras import backend as K
 from keras import initializers, activations
@@ -19,7 +19,7 @@ class SlotSimilarityTupleMatcher(MaskedLayer):
     to determine entailment we find the cosine similarity between these encoded slot representations,
     i.e., the similarity between the first slot in each, then the second slot in each, etc.
     This generates a set of similarity features equal to the number of slots in the tuples, which are
-    then fed to a shallow NN with output of size one.  The output of this NN is considered to be the
+    then fed to  a shallow NN with output of size one.  The output of this NN is considered to be the
     entailment score for the two tuples.
 
     Inputs:
@@ -57,7 +57,7 @@ class SlotSimilarityTupleMatcher(MaskedLayer):
         The activation of the NN output layer
 
     """
-    def __init__(self, similarity_function: Dict, num_hidden_layers: int=1,
+    def __init__(self, similarity_function: Dict[str, Any], num_hidden_layers: int=1,
                  hidden_layer_width: int=4, initialization: str='glorot_uniform',
                  hidden_layer_activation: str='tanh', final_activation: str='sigmoid', **kwargs):
         self.supports_masking = True

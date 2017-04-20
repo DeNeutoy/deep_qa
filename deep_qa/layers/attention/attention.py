@@ -38,14 +38,13 @@ class Attention(MaskedLayer):
         :mod:`deep_qa.tensors.similarity_functions` for more info on what's acceptable).  The
         default similarity function with no parameters is a simple dot product.
     """
-    # pylint: disable=dangerous-default-value
-    def __init__(self, similarity_function: Dict={}, **kwargs):
+    def __init__(self, similarity_function: Dict=None, **kwargs):
         super(Attention, self).__init__(**kwargs)
+        if similarity_function is None:
+            similarity_function = {}
         self.similarity_function_params = deepcopy(similarity_function)
         sim_function_choice = pop_choice_with_default(similarity_function,
                                                       'type', list(similarity_functions.keys()))
-        # TODO(mark): The default value here is mutable so this will introduce naming bugs
-        # if it is called more than once with default parameters.
         similarity_function['name'] = self.name + '_similarity_function'
         self.similarity_function = similarity_functions[sim_function_choice](**similarity_function)
 

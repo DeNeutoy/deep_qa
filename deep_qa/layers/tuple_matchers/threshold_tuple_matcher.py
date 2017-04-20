@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Any
 
 from keras import backend as K
 from keras import initializers, activations
@@ -75,7 +75,7 @@ class ThresholdTupleMatcher(MaskedLayer):
 
     """
 
-    def __init__(self, similarity_function: Dict, num_hidden_layers: int=1,
+    def __init__(self, similarity_function: Dict[str, Any], num_hidden_layers: int=1,
                  hidden_layer_width: int=4, initialization: str='glorot_uniform',
                  hidden_layer_activation: str='tanh', final_activation: str='sigmoid', **kwargs):
         self.supports_masking = True

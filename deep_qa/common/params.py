@@ -107,6 +107,19 @@ class Params(MutableMapping):
         Sometimes we need to just represent the parameters as a dict, for instance when we pass
         them to a Keras layer(so that they can be serialised).
         """
+        def log_recursively(parameters, history):
+            for key, value in parameters.items():
+                if isinstance(value, dict):
+                    new_local_history = value if history == "" else history + "." + key
+                    log_recursively(value, new_local_history)
+                else:
+                    logger.param(self.history + self.history + " : " + key + " : " + str(value))
+
+        logger.info("Converting Params object to dict; logging of default "
+                    "values will not occur when dictionary parameters are "
+                    "used subsequently.")
+        logger.info("CURRENTLY DEFINED PARAMETERS: ")
+        log_recursively(self.params, self.history)
         return self.params
 
     def __check_is_dict(self, new_history, value):

@@ -36,14 +36,16 @@ class MatrixAttention(MaskedLayer):
 
     Parameters
     ----------
-    similarity_function_params: Params, default={}
+    similarity_function_params: Dict[str, any], default={}
         These parameters get passed to a similarity function (see
         :mod:`deep_qa.tensors.similarity_functions` for more info on what's acceptable).  The
         default similarity function with no parameters is a simple dot product.
     '''
-    # pylint: disable=dangerous-default-value
-    def __init__(self, similarity_function: Dict={}, **kwargs):
+    def __init__(self, similarity_function: Dict=None, **kwargs):
         super(MatrixAttention, self).__init__(**kwargs)
+
+        if similarity_function is None:
+            similarity_function = {}
         self.similarity_function_params = deepcopy(similarity_function)
 
         sim_function_choice = pop_choice_with_default(similarity_function,

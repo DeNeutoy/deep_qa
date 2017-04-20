@@ -25,7 +25,10 @@ class TrueFalseEntailmentModel:
     a single vector, then pass that vector through an MLP.  How we actually merge the three inputs
     is specified by one of the combiners below.
     """
-    def __init__(self, num_hidden_layers=1, hidden_layer_width=50, hidden_layer_activation="relu"):
+    def __init__(self,
+                 num_hidden_layers: int=1,
+                 hidden_layer_width: int=50,
+                 hidden_layer_activation: str="relu"):
         self.num_hidden_layers = num_hidden_layers
         self.hidden_layer_width = hidden_layer_width
         self.hidden_layer_activation = hidden_layer_activation
@@ -67,7 +70,11 @@ class QuestionAnswerEntailmentModel:
     into the same dimension as the answer encoding, does a dot product between the combined input
     encoding and the answer encoding, and does a final softmax over those similar scores.
     """
-    def __init__(self, answer_dim, num_hidden_layers=1, hidden_layer_width=50, hidden_layer_activation="relu"):
+    def __init__(self,
+                 answer_dim: int,
+                 num_hidden_layers: int=1,
+                 hidden_layer_width: int=50,
+                 hidden_layer_activation: str="relu"):
         self.num_hidden_layers = num_hidden_layers
         self.hidden_layer_width = hidden_layer_width
         self.hidden_layer_activation = hidden_layer_activation
@@ -117,7 +124,10 @@ class MultipleChoiceEntailmentModel:
     a single vector, then pass that vector through an MLP, once for each of the multiple choices,
     then have a final softmax over answer options.
     """
-    def __init__(self, num_hidden_layers=1, hidden_layer_width=50, hidden_layer_activation="relu"):
+    def __init__(self,
+                 num_hidden_layers: int=1,
+                 hidden_layer_width: int=50,
+                 hidden_layer_activation: str="relu"):
         self.num_hidden_layers = num_hidden_layers
         self.hidden_layer_width = hidden_layer_width
         self.hidden_layer_activation = hidden_layer_activation
