@@ -32,7 +32,7 @@ class MultipleTrueFalseMemoryNetwork(MemoryNetwork):
     has_sigmoid_entailment = True
     has_multiple_backgrounds = True
 
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         # Upper limit on number of options per question in the training data. Ignored during
         # testing (we use the value set at training time, either from this parameter or from a
         # loaded model).  If this is not set, we'll calculate a max length from the data.

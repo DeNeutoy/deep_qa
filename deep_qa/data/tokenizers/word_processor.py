@@ -3,7 +3,7 @@ from typing import List
 from .word_splitter import word_splitters
 from .word_stemmer import word_stemmers
 from .word_filter import word_filters
-from ...common.params import ConfigurationError
+from ...common.params import ConfigurationError, Params
 
 
 class WordProcessor:
@@ -25,7 +25,7 @@ class WordProcessor:
         The name of the ``WordStemmer`` to use (see the options at the bottom of
         ``word_stemmer.py``).
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         word_splitter_choice = params.pop_choice_with_default('word_splitter', list(word_splitters.keys()))
         self.word_splitter = word_splitters[word_splitter_choice]()
         word_filter_choice = params.pop_choice_with_default('word_filter', list(word_filters.keys()))

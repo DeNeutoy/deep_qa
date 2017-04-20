@@ -10,6 +10,7 @@ from ...layers.backend import Max, Repeat
 from ...training import TextTrainer
 from ...common.params import Params
 from ...training.models import DeepQaModel
+from ...common.params import Params
 
 
 class BidirectionalAttentionFlow(TextTrainer):
@@ -59,7 +60,7 @@ class BidirectionalAttentionFlow(TextTrainer):
         # default to using joint word and character-level embeddings, and we want to use a CNN
         # encoder to get a character-level encoding.  We set those here.
         params.setdefault('tokenizer', {'type': 'words and characters'})
-        encoder_params = params.pop('encoder', {'default': {}})
+        encoder_params = params.pop('encoder', {'default': {}}).as_dict()
         encoder_params.setdefault('word', {'type': 'cnn', 'ngram_filter_sizes': [5], 'num_filters': 100})
         params['encoder'] = encoder_params
         self.num_hidden_seq2seq_layers = params.pop('num_hidden_seq2seq_layers', 2)
@@ -68,7 +69,7 @@ class BidirectionalAttentionFlow(TextTrainer):
         self.num_highway_layers = params.pop('num_highway_layers', 2)
         self.highway_activation = params.pop('highway_activation', 'relu')
         self.similarity_function_params = params.pop('similarity_function',
-                                                     {'type': 'linear', 'combination': 'x,y,x*y'})
+                                                     {'type': 'linear', 'combination': 'x,y,x*y'}).as_dict()
         # We have two outputs, so using "val_acc" doesn't work.
         params.setdefault('validation_metric', 'val_loss')
         super(BidirectionalAttentionFlow, self).__init__(params)

@@ -10,7 +10,7 @@ import spacy
 import tqdm
 
 from ...common.models import get_submodel
-from ...common.params import replace_none
+from ...common.params import replace_none, Params
 from ...common import util
 from ...data.instances.sentence_selection.sentence_selection_instance import SentenceSelectionInstance
 from ...models import concrete_models
@@ -73,7 +73,7 @@ class BagOfWordsRetrievalEncoder(RetrievalEncoder):
     his IDF feature.  We should update this class to also have an option for IDF encoding, and then
     we can officially retire ``bow_lsh.py``.
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         embeddings_file = params.pop('embeddings_file')
         self.en_nlp = spacy.load('en')
 
@@ -151,7 +151,7 @@ class SentenceSelectionRetrievalEncoder(RetrievalEncoder):
     model_param_file: str
         This is the parameter file used to train the sentence selection model with ``run_model.py``.
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         model_param_file = params.pop('model_param_file')
         model_params = pyhocon.ConfigFactory.parse_file(model_param_file)
         model_params = replace_none(model_params)

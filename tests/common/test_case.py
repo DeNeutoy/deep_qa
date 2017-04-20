@@ -1,6 +1,5 @@
 # pylint: disable=invalid-name,protected-access
 from copy import deepcopy
-from typing import Any, Dict
 from unittest import TestCase
 import codecs
 import gzip
@@ -66,7 +65,7 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         params = self.get_model_params(model_class, additional_arguments)
         return model_class(params)
 
-    def ensure_model_trains_and_loads(self, model_class, args: "Params"):
+    def ensure_model_trains_and_loads(self, model_class, args: Params):
         args['save_models'] = True
         # Our loading tests work better if you're not using data generators.  Unless you
         # specifically request it in your test, we'll avoid using them here, and if you _do_ use

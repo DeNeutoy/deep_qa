@@ -41,7 +41,7 @@ class VectorBasedRetrieval:
     neighbor algorithm.  Then you can retrieve background sentences given a query string with
     ``retrieval.get_nearest_neighbors``.
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         self.serialization_prefix = params.pop('serialization_prefix', 'retrieval')
 
         encoder_params = params.pop('encoder', {})

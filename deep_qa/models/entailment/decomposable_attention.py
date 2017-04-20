@@ -7,6 +7,7 @@ from ...data.instances.entailment.snli_instance import SnliInstance
 from ...training.text_trainer import TextTrainer
 from ...layers.entailment_models import DecomposableAttentionEntailment
 from ...training.models import DeepQaModel
+from ...common.params import Params
 
 
 class DecomposableAttention(TextTrainer):

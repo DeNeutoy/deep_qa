@@ -21,7 +21,7 @@ class SimpleTagger(TextTrainer):
         Specifies the particular subclass of ``TaggedSequenceInstance`` to use for loading data,
         which in turn defines things like how the input data is formatted and tokenized.
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         self.num_stacked_rnns = params.pop('num_stacked_rnns', 1)
         instance_type_choice = params.pop_choice("instance_type", concrete_instances.keys())
         self.instance_type = concrete_instances[instance_type_choice]

@@ -44,34 +44,32 @@ class Params(MutableMapping):
         self.history = history
 
     @overrides
-    def pop(self, key: str, default: Any=DEFAULT) -> Union["Params", Any]:
+    def pop(self, key: str, default: Any=DEFAULT):
         """
-        Performs the functionality associated with dict.pop(key) but with parameter
-        logging. This is required because pop_with_default may receive a default value
-        of None, which means we can't check for it not being passed.
+        Performs the functionality associated with dict.pop(key), along with checking for
+        returned dictionaries, replacing them with Param objects with an updated history.
         """
         if default is self.DEFAULT:
             value = self.params.pop(key)
         else:
             value = self.params.pop(key, default)
-        logger.param(key + " : " + str(value))
+        logger.param(self.history + " : " + key + " : " + str(value))
         return self.__check_is_dict(key, value)
 
     @overrides
-    def get(self, key: str, default: Any=DEFAULT) -> Union["Params", Any]:
+    def get(self, key: str, default: Any=DEFAULT):
         """
         Performs the functionality associated with dict.pop(key) but with parameter
         logging. This is required because pop_with_default may receive a default value
         of None, which means we can't check for it not being passed.
         """
-        print(default)
         if default is self.DEFAULT:
-            value = self.params.pop(key)
+            value = self.params.get(key)
         else:
-            value = self.params.pop(key, default)
+            value = self.params.get(key, default)
         return self.__check_is_dict(key, value)
 
-    def pop_choice(self, key: str, choices: List[Any], name: str=None) -> Union["Params", Any]:
+    def pop_choice(self, key: str, choices: List[Any]):
         """
         Gets the value of `key` in the `params` dictionary, ensuring that the value is one of the given
         choices.  `name` is an optional description for where a configuration error happened, if there
@@ -83,27 +81,33 @@ class Params(MutableMapping):
 
         value = self.pop(key)
         if value not in choices:
-            raise ConfigurationError(self._get_choice_error_message(value, choices, name))
-        return self.__check_is_dict(key, value)
+            raise ConfigurationError(_get_choice_error_message(value, choices, self.history))
+        return value
 
     def pop_choice_with_default(self,
                                 key: str,
                                 choices: List[Any],
-                                default: Any=None,
-                                name: str=None) -> Union["Params", Any]:
+                                default: Any=None):
         """
         Like get_choice, but with a default value.  If `default` is None, we use the first item in
         `choices` as the default.
         """
         try:
-            return self.pop_choice(key, choices, name)
+            return self.pop_choice(key, choices)
         except KeyError:
             if default is None:
                 default = choices[0]
             if default not in choices:
-                raise ConfigurationError(self._get_choice_error_message(default, choices, name))
+                raise ConfigurationError(_get_choice_error_message(default, choices, self.history))
 
             return self.__check_is_dict(key, default)
+
+    def as_dict(self):
+        """
+        Sometimes we need to just represent the parameters as a dict, for instance when we pass
+        them to a Keras layer(so that they can be serialised).
+        """
+        return self.params
 
     def __check_is_dict(self, new_history, value):
         if isinstance(value, dict):
@@ -111,13 +115,6 @@ class Params(MutableMapping):
             return Params(value, new_history)
         else:
             return value
-
-    @staticmethod
-    def _get_choice_error_message(value: Any, choices: List[Any], name: str=None) -> str:
-        if name:
-            return '%s not in acceptable choices for %s: %s' % (value, name, str(choices))
-        else:
-            return '%s not in acceptable choices: %s' % (value, str(choices))
 
     def __getitem__(self, key):
         return self.__check_is_dict(key, self.params[key])
@@ -135,7 +132,40 @@ class Params(MutableMapping):
         return len(self.params)
 
 
-def assert_params_empty(params: "Params", class_name: str):
+def _get_choice_error_message(value: Any, choices: List[Any], name: str=None) -> str:
+    if name:
+        return '%s not in acceptable choices for %s: %s' % (value, name, str(choices))
+    else:
+        return '%s not in acceptable choices: %s' % (value, str(choices))
+
+
+def pop_choice_with_default(params: Dict,
+                            key: str,
+                            choices: List[Any],
+                            default: Any=None,
+                            name: str=None) -> Any:
+    """
+    Performs the same function as the pop_with_default_method of Params,
+    but is required in order to deal with places that the Params object is not
+    welcome, such as inside Keras layers.
+    """
+    try:
+        value = params.pop(key)
+    except KeyError:
+        if default is None:
+            value = choices[0]
+        else:
+            value = default
+    if value not in choices:
+        raise ConfigurationError(_get_choice_error_message(default, choices, name))
+
+    logger.param("UNSCOPED PARAMETER: Retrieve default arguments manually."
+                 + " : " + key + " : " + str(value))
+
+    return value
+
+
+def assert_params_empty(params: Union["Params", Dict], class_name: str):
     """
     Raises a ConfigurationError if ``params`` is not empty, with a message about where the extra
     parameters were passed to.

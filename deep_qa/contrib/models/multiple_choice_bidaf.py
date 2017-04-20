@@ -168,7 +168,7 @@ class MultipleChoiceBidaf(TextTrainer):
         option_encoder = EncoderWrapper(passage_encoder)
         encoded_passage = passage_encoder(weighted_passage)
         encoded_options = option_encoder(embedded_options)
-        attention_layer = Attention(deepcopy(self.similarity_function_params))
+        attention_layer = Attention(**deepcopy(self.similarity_function_params).as_dict())
         option_scores = attention_layer([encoded_passage, encoded_options])
 
         return DeepQaModel(inputs=[question_input, passage_input, options_input],

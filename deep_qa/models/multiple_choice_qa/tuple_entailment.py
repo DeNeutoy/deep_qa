@@ -4,7 +4,7 @@ from overrides import overrides
 
 from keras.layers import Input
 
-from ...common.params import Params  # pylint disable: unused-import
+from ...common.params import Params
 from ...data.dataset import TextDataset
 from ...data.instances.multiple_choice_qa.question_answer_instance import QuestionAnswerInstance
 from ...data.instances.text_classification.tuple_instance import TupleInstance
@@ -21,7 +21,7 @@ class MultipleChoiceTupleEntailmentModel(TextTrainer):
     uses a tuple alignment entailment model to obtain a probability distribution over the answer options
     based on how well they align with the background tuples, given the question text.
     '''
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         self.entailment_model_params = params.pop('entailment_model', {})
         self.max_answer_length = params.pop('max_answer_length', None)
         self.max_knowledge_length = params.pop('max_knowledge_length', None)

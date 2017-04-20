@@ -1,8 +1,9 @@
 from collections import OrderedDict
+from typing import Dict
 
+from ...common.params import pop_choice_with_default
 from ..wrappers.time_distributed_with_mask import TimeDistributedWithMask
 from .threshold_tuple_matcher import ThresholdTupleMatcher
-from ...common.params import Params
 
 
 class EmbeddedTupleMatcher:
@@ -17,15 +18,15 @@ class EmbeddedTupleMatcher:
         A reference to the TextTrainer object this TupleMatcher belongs to, so we can call
         ``embed_input`` with it.
 
-    tuple_matcher_params: "Params", default={}
+    tuple_matcher_params: Dict, default={}
         Parameters for constructing an underlying TupleMatcher that operates on embedded tuples.
         We only read the "type" key here, which indexes a class in ``embedded_tuple_matchers``, and
         then pass the rest of the parameters on to that class as ``kwargs``.
     """
-    def __init__(self, text_trainer, tuple_matcher_params: "Params"=Params({})):
+    def __init__(self, text_trainer, tuple_matcher_params: Dict):
         self.text_trainer = text_trainer
-        tuple_matcher_choice = tuple_matcher_params.pop_choice_with_default("embedded_matcher_type",
-                                                                            list(embedded_tuple_matchers.keys()))
+        tuple_matcher_choice = pop_choice_with_default(tuple_matcher_params, "embedded_matcher_type",
+                                                       list(embedded_tuple_matchers.keys()))
         self.tuple_matcher = embedded_tuple_matchers[tuple_matcher_choice](**tuple_matcher_params)
 
     def __call__(self, inputs):

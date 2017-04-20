@@ -33,7 +33,7 @@ class TestMatrixAttentionLayer(DeepQaTestCase):
         sentence_1_embedding = Input(shape=(sentence_1_length, embedding_dim), dtype='float32')
         sentence_2_embedding = Input(shape=(sentence_2_length, embedding_dim,), dtype='float32')
         similarity_function_params = Params({'type': 'linear', 'combination': 'x,y,x*y'})
-        attention_layer = MatrixAttention(similarity_function=similarity_function_params)
+        attention_layer = MatrixAttention(similarity_function=similarity_function_params.as_dict())
         attention = attention_layer([sentence_1_embedding, sentence_2_embedding])
         attention = Dense(2)(attention)
         model = Model(inputs=[sentence_1_embedding, sentence_2_embedding], outputs=[attention])

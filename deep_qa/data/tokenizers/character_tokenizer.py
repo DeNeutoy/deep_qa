@@ -4,13 +4,14 @@ from overrides import overrides
 
 from .tokenizer import Tokenizer
 from ..data_indexer import DataIndexer
+from ...common.params import Params
 
 
 class CharacterTokenizer(Tokenizer):
     """
     A CharacterTokenizer splits strings into character tokens.
     """
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         super(CharacterTokenizer, self).__init__(params)
 
     @overrides

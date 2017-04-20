@@ -1,10 +1,11 @@
 from copy import deepcopy
+from typing import Dict
 
 from keras import backend as K
 from overrides import overrides
 
 from ..masked_layer import MaskedLayer
-from ...common.params import Params
+from ...common.params import pop_choice_with_default
 from ...tensors.similarity_functions import similarity_functions
 
 
@@ -35,17 +36,18 @@ class MatrixAttention(MaskedLayer):
 
     Parameters
     ----------
-    similarity_function_params: "Params", default={}
+    similarity_function_params: Params, default={}
         These parameters get passed to a similarity function (see
         :mod:`deep_qa.tensors.similarity_functions` for more info on what's acceptable).  The
         default similarity function with no parameters is a simple dot product.
     '''
-    def __init__(self, similarity_function: "Params"=Params({}), **kwargs):
+    # pylint: disable=dangerous-default-value
+    def __init__(self, similarity_function: Dict={}, **kwargs):
         super(MatrixAttention, self).__init__(**kwargs)
         self.similarity_function_params = deepcopy(similarity_function)
 
-        sim_function_choice = similarity_function.pop_choice_with_default('type',
-                                                                          list(similarity_functions.keys()))
+        sim_function_choice = pop_choice_with_default(similarity_function,
+                                                      'type', list(similarity_functions.keys()))
         similarity_function['name'] = self.name + '_similarity_function'
         self.similarity_function = similarity_functions[sim_function_choice](**similarity_function)
 

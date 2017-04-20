@@ -1,10 +1,11 @@
 from copy import deepcopy
+from typing import Dict
 
 from keras import backend as K
 from keras import initializers, activations
 from overrides import overrides
 
-from ...common.params import Params
+from ...common.params import pop_choice_with_default
 from ...tensors.backend import apply_feed_forward
 from ...tensors.similarity_functions import similarity_functions
 from ..masked_layer import MaskedLayer
@@ -35,7 +36,7 @@ class SlotSimilarityTupleMatcher(MaskedLayer):
 
     Parameters
     ----------
-    - similarity_function_params: "Params", default={}
+    - similarity_function_params: Dict, default={}
         These parameters get passed to a similarity function (see
         :mod:`deep_qa.tensors.similarity_functions` for more info on what's acceptable).  The default
         similarity function with no parameters is a simple dot product.
@@ -56,7 +57,7 @@ class SlotSimilarityTupleMatcher(MaskedLayer):
         The activation of the NN output layer
 
     """
-    def __init__(self, similarity_function: "Params"=Params({}), num_hidden_layers: int=1,
+    def __init__(self, similarity_function: Dict, num_hidden_layers: int=1,
                  hidden_layer_width: int=4, initialization: str='glorot_uniform',
                  hidden_layer_activation: str='tanh', final_activation: str='sigmoid', **kwargs):
         self.supports_masking = True
@@ -70,8 +71,8 @@ class SlotSimilarityTupleMatcher(MaskedLayer):
         self.score_layer = None
         super(SlotSimilarityTupleMatcher, self).__init__(**kwargs)
         self.similarity_function_params = deepcopy(similarity_function)
-        sim_function_choice = similarity_function.pop_choice_with_default('type',
-                                                                          list(similarity_functions.keys()))
+        sim_function_choice = pop_choice_with_default(similarity_function, 'type',
+                                                      list(similarity_functions.keys()))
         similarity_function['name'] = self.name + '_similarity_function'
         self.similarity_function = similarity_functions[sim_function_choice](**similarity_function)
 

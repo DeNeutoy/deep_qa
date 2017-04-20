@@ -11,7 +11,7 @@ from .positional_encoder import PositionalEncoder
 from .shareable_gru import ShareableGRU as GRU
 
 
-def set_regularization_params(encoder_type: str, params: "Params"):
+def set_regularization_params(encoder_type: str, params: Params):
     """
     This method takes regularization parameters that are specified in `params` and converts them
     into Keras regularization objects, modifying `params` to contain the correct keys for the given

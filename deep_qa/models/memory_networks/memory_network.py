@@ -92,7 +92,7 @@ class MemoryNetwork(TextTrainer):
     has_sigmoid_entailment = False
     has_multiple_backgrounds = False
 
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
 
         self.num_memory_layers = params.pop('num_memory_layers', 1)
         # This is used to label names for layers within the memory network loop. We have to define it here
@@ -236,7 +236,7 @@ class MemoryNetwork(TextTrainer):
         params['knowledge_length'] = self.max_knowledge_length
         params['question_encoder'] = question_encoder
         params['has_multiple_backgrounds'] = self.has_multiple_backgrounds
-        return knowledge_encoders[knowledge_encoder_type](params)
+        return knowledge_encoders[knowledge_encoder_type](**params)
 
     def _get_knowledge_selector(self, layer_num: int):
         """
@@ -344,7 +344,7 @@ class MemoryNetwork(TextTrainer):
         # TODO(matt): Not great to have these two lines here.
         if model_type == 'question_answer_mlp':
             entailment_params['answer_dim'] = self.embedding_dim['words']
-        return entailment_models[model_type](entailment_params)
+        return entailment_models[model_type](**entailment_params)
 
     def _get_memory_network_recurrence(self):
         # This code determines how the memory step is controlled within the memory network. If the
@@ -352,9 +352,8 @@ class MemoryNetwork(TextTrainer):
         # adaptive, the number of steps is data dependent and is a parameter of the model.
         recurrence_params = deepcopy(self.recurrence_params)
         recurrence_type = recurrence_params.pop_choice_with_default("type", list(recurrence_modes.keys()))
-        recurrence_params["memory_step"] = self.memory_step
         recurrence_params["num_memory_layers"] = self.num_memory_layers
-        return recurrence_modes[recurrence_type](self, recurrence_params)
+        return recurrence_modes[recurrence_type](self, **recurrence_params.as_dict())
 
     @overrides
     def _build_model(self):

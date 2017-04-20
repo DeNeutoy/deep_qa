@@ -115,7 +115,7 @@ class TextTrainer(Trainer):
         information.
     """
     # pylint: enable=line-too-long
-    def __init__(self, params: "Params"):
+    def __init__(self, params: Params):
         self.pretrained_embeddings_file = params.pop('pretrained_embeddings_file', None)
         self.fine_tune_embeddings = params.pop('fine_tune_embeddings', False)
         self.project_embeddings = params.pop('project_embeddings', False)
@@ -616,14 +616,14 @@ class TextTrainer(Trainer):
                                                name=name + '_projection')
         return embedding_layer, projection_layer
 
-    def __get_new_encoder(self, params: "Params", name: str):
+    def __get_new_encoder(self, params: Params, name: str):
         encoder_type = params.pop_choice_with_default("type", list(encoders.keys()))
         params["name"] = name
         params.setdefault("units", self.embedding_dim['words'])
         set_regularization_params(encoder_type, params)
         return encoders[encoder_type](**params)
 
-    def __get_new_seq2seq_encoder(self, params: "Params", name="seq2seq_encoder"):
+    def __get_new_seq2seq_encoder(self, params: Params, name="seq2seq_encoder"):
         encoder_params = params["encoder_params"]
         wrapper_params = params["wrapper_params"]
         wrapper_params["name"] = name
