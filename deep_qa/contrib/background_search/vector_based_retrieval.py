@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy
 
-from ...common.params import assert_params_empty, Params  # pylint: disable=unused-import
+from ...common.params import assert_params_empty, Params
 from .nearest_neighbor_algorithms import nearest_neighbor_algorithms
 from .retrieval_encoders import retrieval_encoders
 

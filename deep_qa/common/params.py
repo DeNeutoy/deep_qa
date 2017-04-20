@@ -53,15 +53,14 @@ class Params(MutableMapping):
             value = self.params.pop(key)
         else:
             value = self.params.pop(key, default)
-        logger.param(self.history + " : " + key + " : " + str(value))
+        logger.param(self.history + "." + key + " = " + str(value))
         return self.__check_is_dict(key, value)
 
     @overrides
     def get(self, key: str, default: Any=DEFAULT):
         """
-        Performs the functionality associated with dict.pop(key) but with parameter
-        logging. This is required because pop_with_default may receive a default value
-        of None, which means we can't check for it not being passed.
+        Performs the functionality associated with dict.get(key) but also checks for returned
+        dicts and returns a Params object in their place with an updated history.
         """
         if default is self.DEFAULT:
             value = self.params.get(key)
@@ -71,11 +70,8 @@ class Params(MutableMapping):
 
     def pop_choice(self, key: str, choices: List[Any]):
         """
-        Gets the value of `key` in the `params` dictionary, ensuring that the value is one of the given
-        choices.  `name` is an optional description for where a configuration error happened, if there
-        is one.
-
-        Note that this _pops_ the key from params, modifying the dictionary, consistent with how
+        Gets the value of ``key`` in the ``params`` dictionary, ensuring that the value is one of the given
+        choices. Note that this `pops` the key from params, modifying the dictionary, consistent with how
         parameters are processed in this codebase.
         """
 
@@ -89,8 +85,8 @@ class Params(MutableMapping):
                                 choices: List[Any],
                                 default: Any=None):
         """
-        Like get_choice, but with a default value.  If `default` is None, we use the first item in
-        `choices` as the default.
+        Like pop_choice, but with a default value.  If ``default` is None, we use the first item in
+        ``choices`` as the default.
         """
         try:
             return self.pop_choice(key, choices)
@@ -113,7 +109,7 @@ class Params(MutableMapping):
                     new_local_history = value if history == "" else history + "." + key
                     log_recursively(value, new_local_history)
                 else:
-                    logger.param(self.history + self.history + " : " + key + " : " + str(value))
+                    logger.param(history + "." + key + " = " + str(value))
 
         logger.info("Converting Params object to dict; logging of default "
                     "values will not occur when dictionary parameters are "
@@ -158,7 +154,7 @@ def pop_choice_with_default(params: Dict,
                             default: Any=None,
                             name: str=None) -> Any:
     """
-    Performs the same function as the pop_with_default_method of Params,
+    Performs the same function as the :func:`Params.pop_with_default_method` of Params,
     but is required in order to deal with places that the Params object is not
     welcome, such as inside Keras layers.
     """
@@ -173,12 +169,12 @@ def pop_choice_with_default(params: Dict,
         raise ConfigurationError(_get_choice_error_message(default, choices, name))
 
     logger.param("UNSCOPED PARAMETER: Retrieve default arguments manually."
-                 + " : " + key + " : " + str(value))
+                 + key + " : " + str(value))
 
     return value
 
 
-def assert_params_empty(params: Union["Params", Dict], class_name: str):
+def assert_params_empty(params: Union[Params, Dict], class_name: str):
     """
     Raises a ConfigurationError if ``params`` is not empty, with a message about where the extra
     parameters were passed to.

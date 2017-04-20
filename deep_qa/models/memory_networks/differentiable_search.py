@@ -3,7 +3,7 @@ import logging
 import pickle
 
 from itertools import zip_longest
-from typing import Dict, List  # pylint: disable=unused-import
+from typing import List
 
 from overrides import overrides
 import numpy

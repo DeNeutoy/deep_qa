@@ -45,7 +45,7 @@ class TestThresholdTupleMatcher(DeepQaTestCase):
 
     @flaky
     def test_general_case(self):
-        match_layer = ThresholdTupleMatcher(Params({"type": "cosine_similarity"}),
+        match_layer = ThresholdTupleMatcher({"type": "cosine_similarity"},
                                             self.num_hidden_layers,
                                             self.hidden_layer_width,
                                             initialization=Constant(.999),
@@ -76,7 +76,7 @@ class TestThresholdTupleMatcher(DeepQaTestCase):
         tuple2 = K.variable(self.tuple2)
         mask2 = K.variable(numpy.zeros((1, self.num_slots, self.num_words)))
         calculated_mask_exclude = K.eval(
-                ThresholdTupleMatcher(Params({"type": "cosine_similarity"}),
+                ThresholdTupleMatcher({"type": "cosine_similarity"},
                                       self.num_hidden_layers,
                                       self.hidden_layer_width,
                                       hidden_layer_activation=self.hidden_layer_activation)
@@ -91,7 +91,7 @@ class TestThresholdTupleMatcher(DeepQaTestCase):
         mask2 = K.variable(new_mask)
 
         calculated_mask_include = K.eval(
-                ThresholdTupleMatcher(Params({"type": "cosine_similarity"}),
+                ThresholdTupleMatcher({"type": "cosine_similarity"},
                                       self.num_hidden_layers,
                                       self.hidden_layer_width,
                                       hidden_layer_activation=self.hidden_layer_activation)
@@ -110,7 +110,7 @@ class TestThresholdTupleMatcher(DeepQaTestCase):
         embedded_masked_tuple1 = embedding(tuple1_word_input)
         embedded_masked_tuple2 = embedding(tuple2_word_input)
 
-        match_layer = ThresholdTupleMatcher(Params({"type": "cosine_similarity"}),
+        match_layer = ThresholdTupleMatcher({"type": "cosine_similarity"},
                                             self.num_hidden_layers,
                                             self.hidden_layer_width,
                                             initialization=Constant(.999),

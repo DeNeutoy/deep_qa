@@ -141,7 +141,9 @@ class TextTrainer(Trainer):
                                                  {'default': {"encoder_params": {},
                                                               "wrapper_params": {}}})
         self.seq2seq_encoder_fallback_behavior = \
-            params.pop_choice_with_default('seq2seq_encoder_fallback_behavior', 'crash')
+            params.pop_choice_with_default('seq2seq_encoder_fallback_behavior', ['crash',
+                                                                                 "use default encoder",
+                                                                                 "use default params"])
         super(TextTrainer, self).__init__(params)
 
         self.name = "TextTrainer"
