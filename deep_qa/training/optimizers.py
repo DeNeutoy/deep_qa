@@ -24,7 +24,7 @@ from ..common.params import Params
 
 if K.backend() == "tensorflow":
     from keras.optimizers import Optimizer
-    from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop
+    from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop, optimizer
     from tensorflow import clip_by_value, clip_by_norm
 
 
@@ -75,12 +75,40 @@ if K.backend() == "tensorflow":
         def from_config(self, config):
             raise NotImplementedError
 
+    def callable_wrapper(optimiser: optimizer.Optimizer, name: str):
+        """
+        This allows arguments to be unpacked into the tensorflow
+        optimiser if required, but first splits off the "clipnorm" and "clipvalue"
+        optional arguments and passes those to the ``TFOptimizer`` wrapper class.
+        This makes the interface to Tensorflow optimisers identical to Keras ones.
+
+        :param optimiser: An instance of a tensorflow optimiser.
+        :param name: The name of the optimiser class. Just used to get default learning rates
+          if they aren't present.
+        :return: A callable optimiser which takes a dictionary of inputs.
+        """
+        # Keras has default values for all of the optimiser classes, but tensorflow is
+        # missing some. Here we set them to the default values(from Keras) if they
+        # are not passed as arguments.
+        default_learning_rates = {"sgd": 0.01, "rmsprop": 0.001, "adagrad": 0.01}
+
+        def callable_optimiser(**kwargs):
+            clipnorm = kwargs.pop("clipnorm", None)
+            clipvalue = kwargs.pop("clipvalue", None)
+            learning_rate = kwargs.get("learning_rate", None)
+
+            if learning_rate is None and name in default_learning_rates.keys():
+                kwargs["learning_rate"] = default_learning_rates[name]
+
+            return TFOptimizer(optimiser(**kwargs), clipnorm=clipnorm, clipvalue=clipvalue)
+        return callable_optimiser
+
     optimizers = {  # pylint: disable=invalid-name
-        'sgd': TFOptimizer(gradient_descent),
-        'rmsprop': TFOptimizer(rmsprop),
-        'adagrad': TFOptimizer(adagrad),
-        'adadelta': TFOptimizer(adadelta),
-        'adam': TFOptimizer(adam),
+        'sgd': callable_wrapper(gradient_descent.GradientDescentOptimizer, "sgd"),
+        'rmsprop': callable_wrapper(rmsprop.RMSPropOptimizer, "rmsprop"),
+        'adagrad': callable_wrapper(adagrad.AdagradOptimizer, "adagrad"),
+        'adadelta': callable_wrapper(adadelta.AdadeltaOptimizer, "adadelta"),
+        'adam': callable_wrapper(adam.AdamOptimizer, "adam"),
         'adamax': Adamax,
         'nadam': Nadam,
     }
