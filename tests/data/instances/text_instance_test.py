@@ -50,7 +50,7 @@ class TestTextInstance(DeepQaTestCase):
         instance = TextClassificationInstance("A sentence", None).to_indexed_instance(data_indexer)
         assert instance.word_indices == [capital_a_index, space_index, s_index, e_index, n_index, t_index,
                                          e_index, n_index, c_index, e_index]
-        TextInstance.tokenizer = tokenizers['words and characters']({})
+        TextInstance.tokenizer = tokenizers['words and characters'](Params({}))
         instance = TextClassificationInstance("A sentence", None).to_indexed_instance(data_indexer)
 
         assert instance.word_indices == [[a_word_index, a_index],
