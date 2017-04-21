@@ -50,8 +50,10 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         params['num_epochs'] = 1
         params['validation_split'] = 0.0
         if self.is_model_with_background(model_class):
+            # pylint: disable=no-member
             params['train_files'].append(self.TRAIN_BACKGROUND)
             params['validation_files'].append(self.VALIDATION_BACKGROUND)
+            # pylint: enable=no-member
         if self.is_memory_network(model_class):
             params['knowledge_selector'] = {'type': 'dot_product'}
             params['memory_updater'] = {'type': 'sum'}
