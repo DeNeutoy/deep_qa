@@ -15,18 +15,86 @@ implemented optimizers I can grab.
 of things really well. It just has a few quirks...
 """
 from typing import Union
+
+from keras import backend as K
+
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
 from ..common.params import Params
 
-optimizers = {  # pylint: disable=invalid-name
-        'sgd': SGD,
-        'rmsprop': RMSprop,
-        'adagrad': Adagrad,
-        'adadelta': Adadelta,
-        'adam': Adam,
+
+if K.backend() == "tensorflow":
+    from keras.optimizers import Optimizer
+    from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop
+    from tensorflow import clip_by_value, clip_by_norm
+
+
+    class TFOptimizer(Optimizer):
+        """
+        Wrapper class for native TensorFlow optimizers. This exists already in Keras,
+        but it doesn't support the same API as the other optimisers, which, you know,
+        would be nice.
+        """
+        def __init__(self, optimizer, **kwargs):
+
+            self.clip_norm = kwargs.pop("clipnorm", None)
+            self.clip_value = kwargs.pop("clipvalue", None)
+
+            if kwargs != {}:
+                raise TypeError('Unexpected keyword argument/s '
+                                'passed to optimizer: ' + str(kwargs))
+
+            self.optimizer = optimizer
+            self.iterations = K.variable(0., name='iterations')
+            self.updates = []
+
+        def get_updates(self, params, constraints, loss):
+            if constraints:
+                raise ValueError('TF optimizers do not support '
+                                 'weights constraints. Either remove '
+                                 'all weights constraints in your model, '
+                                 'or use a Keras optimizer.')
+            grads = self.optimizer.compute_gradients(loss, params)
+
+            if self.clip_norm is not None:
+                grads = [clip_by_norm(grad, self.clip_norm) for grad in grads]
+            if self.clip_value is not None:
+                grads = [clip_by_value(grad, -self.clip_value, self.clip_value) for grad in grads]
+            opt_update = self.optimizer.apply_gradients(
+                grads, global_step=self.iterations)
+
+            self.updates.append(opt_update)
+            return self.updates
+
+        @property
+        def weights(self):
+            raise NotImplementedError
+
+        def get_config(self):
+            raise NotImplementedError
+
+        def from_config(self, config):
+            raise NotImplementedError
+
+    optimizers = {  # pylint: disable=invalid-name
+        'sgd': TFOptimizer(gradient_descent),
+        'rmsprop': TFOptimizer(rmsprop),
+        'adagrad': TFOptimizer(adagrad),
+        'adadelta': TFOptimizer(adadelta),
+        'adam': TFOptimizer(adam),
         'adamax': Adamax,
         'nadam': Nadam,
-        }
+    }
+else:
+
+    optimizers = {  # pylint: disable=invalid-name
+            'sgd': SGD,
+            'rmsprop': RMSprop,
+            'adagrad': Adagrad,
+            'adadelta': Adadelta,
+            'adam': Adam,
+            'adamax': Adamax,
+            'nadam': Nadam,
+            }
 
 
 def optimizer_from_params(params: Union[Params, str]):
