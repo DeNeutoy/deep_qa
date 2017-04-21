@@ -15,6 +15,7 @@ implemented optimizers I can grab.
 of things really well. It just has a few quirks...
 """
 from typing import Union
+from ..common.params import Params
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
 
 optimizers = {  # pylint: disable=invalid-name
@@ -28,7 +29,7 @@ optimizers = {  # pylint: disable=invalid-name
         }
 
 
-def optimizer_from_params(params: Union["Params", str]):
+def optimizer_from_params(params: Union[Params, str]):
     """
     This method converts from a parameter object like we use in our Trainer
     code into an optimizer object suitable for use with Keras. The simplest
