@@ -8,7 +8,6 @@ from ...layers import ComplexConcat, Highway
 from ...layers.attention import MatrixAttention, MaskedSoftmax, WeightedSum
 from ...layers.backend import Max, Repeat
 from ...training import TextTrainer
-from ...common.params import Params
 from ...training.models import DeepQaModel
 from ...common.params import Params
 

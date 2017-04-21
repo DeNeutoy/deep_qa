@@ -15,8 +15,8 @@ implemented optimizers I can grab.
 of things really well. It just has a few quirks...
 """
 from typing import Union
-from ..common.params import Params
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
+from ..common.params import Params
 
 optimizers = {  # pylint: disable=invalid-name
         'sgd': SGD,
