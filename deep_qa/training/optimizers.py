@@ -31,8 +31,8 @@ if K.backend() == "tensorflow":
     class TFOptimizer(Optimizer):
         """
         Wrapper class for native TensorFlow optimizers. This exists already in Keras,
-        but it doesn't support the same API as the other optimisers, which, you know,
-        would be nice.
+        but it doesn't support the same API as the other Keras optimisers, which this
+        class fixes by allowing gradient clipping by value or by norm.
         """
         def __init__(self, optimizer, **kwargs):
 
