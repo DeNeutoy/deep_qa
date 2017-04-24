@@ -15,17 +15,21 @@ implemented optimizers I can grab.
 of things really well. It just has a few quirks...
 """
 from typing import Union
-
+from overrides import overrides
 from keras import backend as K
 
 from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
 from ..common.params import Params
+from ..common.checks import ConfigurationError
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 if K.backend() == "tensorflow":
     from keras.optimizers import Optimizer
     from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop, optimizer
-    from tensorflow import clip_by_value, clip_by_norm
+    from tensorflow import clip_by_global_norm
 
 
     class TFOptimizer(Optimizer):
@@ -36,6 +40,7 @@ if K.backend() == "tensorflow":
         """
         def __init__(self, optimizer, **kwargs):
 
+            logger.info("Initialising TF optimiser.")
             self.clip_norm = kwargs.pop("clipnorm", None)
             self.clip_value = kwargs.pop("clipvalue", None)
 
@@ -47,6 +52,7 @@ if K.backend() == "tensorflow":
             self.iterations = K.variable(0., name='iterations')
             self.updates = []
 
+        @overrides
         def get_updates(self, params, constraints, loss):
             if constraints:
                 raise ValueError('TF optimizers do not support '
@@ -56,9 +62,11 @@ if K.backend() == "tensorflow":
             grads = self.optimizer.compute_gradients(loss, params)
 
             if self.clip_norm is not None:
-                grads = [clip_by_norm(grad, self.clip_norm) for grad in grads]
+                grads, _ = clip_by_global_norm(g, self.clip_norm)
             if self.clip_value is not None:
-                grads = [clip_by_value(grad, -self.clip_value, self.clip_value) for grad in grads]
+                raise ConfigurationError("Tensorflow does not permit clipping by value for sparse tensors."
+                                         "This slows down training of embedding based models; please use"
+                                         "clip_norm instead.")
             opt_update = self.optimizer.apply_gradients(
                 grads, global_step=self.iterations)
 
