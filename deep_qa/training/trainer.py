@@ -13,6 +13,7 @@ from ..data.instances.instance import Instance
 from ..layers.wrappers import OutputMask
 from .models import DeepQaModel
 from .optimizers import optimizer_from_params
+from .multi_gpu import make_parallel
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -148,8 +149,11 @@ class Trainer:
             os.makedirs(parent_directory, exist_ok=True)
 
         # `model.fit()` parameters.
+        self.num_gpus = params.pop("num_gpus", 2)
         self.validation_split = params.pop('validation_split', 0.1)
         self.batch_size = params.pop('batch_size', 32)
+        self.batch_size *= self.num_gpus
+
         self.num_epochs = params.pop('num_epochs', 20)
         self.optimizer = optimizer_from_params(params.pop('optimizer', 'adam'))
         self.gradient_clipping = params.pop('gradient_clipping', {'type': 'clip_by_norm', "value": 10})
@@ -282,6 +286,10 @@ class Trainer:
         # Then we build the model and compile it.
         logger.info("Building the model")
         self.model = self._build_model()
+
+        if self.num_gpus > 1:
+            self.model = make_parallel(self.model, self.num_gpus)
+
         self.model.summary(show_masks=self.show_summary_with_masking)
         self.model.compile(self.__compile_kwargs())
 
