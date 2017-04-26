@@ -4,7 +4,6 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy
-import keras.backend as K
 from keras.models import model_from_json
 from keras.callbacks import LambdaCallback, TensorBoard, EarlyStopping, CallbackList, ModelCheckpoint
 
@@ -125,9 +124,6 @@ class Trainer:
     show_summary_with_masking_info: bool, optional (default=False)
         This is a debugging setting, mostly - we have written a custom model.summary() method that
         supports showing masking info, to help understand what's going on with the masks.
-    preferred_backend: str, optional (default=None)
-        Preferred backend to use for training. If a different backend is detected, we still train
-        but we also warn the user.
     """
     def __init__(self, params: Params):
         self.name = "Trainer"
@@ -168,10 +164,6 @@ class Trainer:
         self.tensorboard_histogram_freq = params.pop('tensorboard_histogram_freq', 0)
         self.debug_params = params.pop('debug', {})
         self.show_summary_with_masking = params.pop('show_summary_with_masking_info', False)
-        self.preferred_backend = params.pop('preferred_backend', None)
-        if self.preferred_backend and self.preferred_backend.lower() != K.backend():
-            warning_message = self.__make_backend_warning(self.preferred_backend.lower(), K.backend())
-            logger.warning(warning_message)
 
         # We've now processed all of the parameters, and we're the base class, so there should not
         # be anything left.
@@ -280,9 +272,11 @@ class Trainer:
         self.training_arrays = self.create_data_arrays(indexed_training_dataset)
 
         if self.validation_files:
-            self.validation_dataset, self.validation_arrays = self.load_data_arrays(self.validation_files)
+            self.validation_dataset, self.validation_arrays = self.load_data_arrays(self.validation_files,
+                                                                                    self.max_validation_instances)
         if self.test_files:
-            self.test_dataset, self.test_arrays = self.load_data_arrays(self.test_files)
+            self.test_dataset, self.test_arrays = self.load_data_arrays(self.test_files,
+                                                                        self.max_test_instances)
 
         # Then we build the model and compile it.
         logger.info("Building the model")
@@ -318,13 +312,13 @@ class Trainer:
         # so you may have left it above zero on accident.
         if self.validation_arrays is not None:
             kwargs['validation_data'] = self.validation_arrays
-        elif self.validation_split > 0.0:
+        elif self.validation_split > 0.0 and not self._uses_data_generators():
             kwargs['validation_split'] = self.validation_split
 
         # Add the user-specified arguments to fit.
         kwargs.update(self.fit_kwargs)
         # We now pass all the arguments to the model's fit function, which does all of the training.
-        if isinstance(self.training_arrays, tuple):
+        if not self._uses_data_generators():
             history = self.model.fit(self.training_arrays[0], self.training_arrays[1], **kwargs)
         else:
             # If the data was produced by a generator, we have a bit more work to do to get the
@@ -333,7 +327,7 @@ class Trainer:
             kwargs['steps_per_epoch'] = self.train_steps_per_epoch
             if kwargs['steps_per_epoch'] is None:
                 kwargs['steps_per_epoch'] = math.ceil(len(self.training_dataset.instances) / self.batch_size)
-            if self.validation_arrays is not None and not isinstance(self.validation_arrays, tuple):
+            if self.validation_arrays is not None and self._uses_data_generators():
                 kwargs['validation_steps'] = self.validation_steps
                 if kwargs['validation_steps'] is None:
                     kwargs['validation_steps'] = math.ceil(len(self.validation_dataset.instances) /
@@ -351,7 +345,7 @@ class Trainer:
         if self.test_files:
             self.load_model()
             logger.info("Evaluting model on the test set.")
-            if isinstance(self.test_arrays, tuple):
+            if not self._uses_data_generators():
                 scores = self.model.evaluate(self.test_arrays[0], self.test_arrays[1])
             else:
                 test_steps = self.test_steps
@@ -491,9 +485,6 @@ class Trainer:
         callbacks = [early_stop, model_callbacks]
 
         if self.tensorboard_log is not None:
-            if K.backend() == 'theano':
-                raise ConfigurationError("Tensorboard logging is only compatibile with Tensorflow. "
-                                         "Change the backend using the KERAS_BACKEND environment variable.")
             tensorboard_visualisation = TensorBoard(log_dir=self.tensorboard_log,
                                                     histogram_freq=self.tensorboard_histogram_freq)
             callbacks.append(tensorboard_visualisation)
@@ -584,6 +575,17 @@ class Trainer:
         print(model_config, file=model_config_file)
         model_config_file.close()
 
+
+    def _uses_data_generators(self):  # pylint: disable=no-self-use
+        """
+        Training models with Keras requires a different API if you produce data in batches uses a
+        generator or if you just provide one big numpy array with all of your data, which Keras has
+        to split into batches.  This method tells us which Keras API we should use.  If your model
+        class produces data using a generator, return ``True`` here; otherwise, return ``False``.
+        The default implementation just returns ``False.``
+        """
+        return False
+
     @classmethod
     def _get_custom_objects(cls):
         """
@@ -613,25 +615,6 @@ class Trainer:
         final_weight_file = "%s_weights.h5" % self.model_prefix
         copyfile(epoch_weight_file, final_weight_file)
         logger.info("Saved the best model to %s", final_weight_file)
-
-    @staticmethod
-    def __make_backend_warning(preferred_backend, actual_backend):
-        warning_info = ("@ Preferred backend is %s, but "
-                        "current backend is %s. @" % (preferred_backend,
-                                                      actual_backend))
-        end_row = "@" * len(warning_info)
-        warning_row_spaces = len(warning_info) - len("@ WARNING: @")
-        left_warning_row_spaces = right_warning_row_spaces = warning_row_spaces // 2
-        if warning_row_spaces % 2 == 1:
-            # left and right have uneven spacing
-            right_warning_row_spaces += 1
-        left_warning_row = "\n@" + " " * left_warning_row_spaces
-        right_warning_row = " " * right_warning_row_spaces + "@\n"
-        warning_message = ("\n" + end_row +
-                           left_warning_row + " WARNING: " + right_warning_row +
-                           warning_info +
-                           "\n" + end_row)
-        return warning_message
 
     def __build_debug_model(self, debug_layer_names: List[str], debug_masks: List[str]):
         """
