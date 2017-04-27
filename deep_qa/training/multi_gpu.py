@@ -4,14 +4,14 @@ from .models import DeepQaModel
 import tensorflow as tf
 
 
-def make_parallel(model: DeepQaModel, gpu_count: int):
+def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
 
     """
     :param model: An instance of a DeepQaModel.
     :param gpu_count: The number of GPUs to duplicate the model across.
-    :return:
+    :return: A new DeepQaModel, consisting of model_duplicates over
+        the number of available GPUs.
     """
-
     # Argument to a Lambda layer which will slice our large batches
     # along the batch dimension and return a given slice.
     def get_slice(data, idx, parts):
@@ -28,8 +28,7 @@ def make_parallel(model: DeepQaModel, gpu_count: int):
     # Place a copy of the model on each GPU, each getting a slice of the batch.
     for i in range(gpu_count):
         with tf.device('/gpu:%d' % i):
-            with tf.name_scope('tower_%d' % i) as scope:
-
+            with tf.name_scope('tower_%d' % i):
                 inputs = []
                 # Slice each input into a piece for processing on this GPU.
                 for model_input in model.inputs:
@@ -43,7 +42,6 @@ def make_parallel(model: DeepQaModel, gpu_count: int):
                     inputs.append(slice_n)
 
                 outputs = model(inputs)
-
                 if not isinstance(outputs, list):
                     outputs = [outputs]
 
@@ -56,5 +54,4 @@ def make_parallel(model: DeepQaModel, gpu_count: int):
         merged = []
         for outputs in outputs_all:
             merged.append(merge(outputs, mode='concat', concat_axis=0))
-
         return DeepQaModel(input=model.inputs, output=merged)
