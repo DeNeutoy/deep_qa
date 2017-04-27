@@ -14,104 +14,102 @@ implemented optimizers I can grab.
 \* I should also note that Keras is an incredibly useful library that does a lot
 of things really well. It just has a few quirks...
 """
+import logging
 from typing import Union
 from overrides import overrides
 from keras import backend as K
 
-from keras.optimizers import SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax, Nadam
+from keras.optimizers import Optimizer
+from keras.optimizers import Adamax, Nadam
+from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop, optimizer
+from tensorflow import clip_by_global_norm
 from ..common.params import Params
 from ..common.checks import ConfigurationError
 
-import logging
 
-logger = logging.getLogger(__name__)
-
-if K.backend() == "tensorflow":
-    from keras.optimizers import Optimizer
-    from tensorflow.python.training import adagrad, adadelta, adam, gradient_descent, rmsprop, optimizer
-    from tensorflow import clip_by_global_norm
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-    class TFOptimizer(Optimizer):
-        """
-        Wrapper class for native TensorFlow optimizers. This exists already in Keras,
-        but it doesn't support the same API as the other Keras optimisers, which this
-        class fixes by allowing gradient clipping by value or by norm.
-        """
-        def __init__(self, optimizer, **kwargs):
+class TFOptimizer(Optimizer):
+    """
+    Wrapper class for native TensorFlow optimizers. This exists already in Keras,
+    but it doesn't support the same API as the other Keras optimisers, which this
+    class fixes by allowing gradient clipping by value or by norm.
+    """
+    # pylint: disable=super-init-not-called
+    def __init__(self, optimizer, **kwargs):
 
-            logger.info("Initialising TF optimiser.")
-            self.clip_norm = kwargs.pop("clipnorm", None)
-            self.clip_value = kwargs.pop("clipvalue", None)
+        logger.info("Initialising TF optimiser.")
+        self.clip_norm = kwargs.pop("clipnorm", None)
+        self.clip_value = kwargs.pop("clipvalue", None)
 
-            if kwargs != {}:
-                raise TypeError('Unexpected keyword argument/s '
-                                'passed to optimizer: ' + str(kwargs))
+        if kwargs != {}:
+            raise TypeError('Unexpected keyword argument/s '
+                            'passed to optimizer: ' + str(kwargs))
 
-            self.optimizer = optimizer
-            self.iterations = K.variable(0., name='iterations')
-            self.updates = []
+        self.optimizer = optimizer
+        self.iterations = K.variable(0., name='iterations')
+        self.updates = []
 
-        @overrides
-        def get_updates(self, params, constraints, loss):
-            if constraints:
-                raise ValueError('TF optimizers do not support '
-                                 'weights constraints. Either remove '
-                                 'all weights constraints in your model, '
-                                 'or use a Keras optimizer.')
-            grads = self.optimizer.compute_gradients(loss, params)
+    @overrides
+    def get_updates(self, params, constraints, loss):
+        if constraints:
+            raise ValueError('TF optimizers do not support '
+                             'weights constraints. Either remove '
+                             'all weights constraints in your model, '
+                             'or use a Keras optimizer.')
+        grads = self.optimizer.compute_gradients(loss, params)
 
-            if self.clip_norm is not None:
-                grads, _ = clip_by_global_norm(g, self.clip_norm)
-            if self.clip_value is not None:
-                raise ConfigurationError("Tensorflow does not permit clipping by value for sparse tensors."
-                                         "This slows down training of embedding based models; please use"
-                                         "clip_norm instead.")
-            opt_update = self.optimizer.apply_gradients(
-                grads, global_step=self.iterations)
+        if self.clip_norm is not None:
+            grads, _ = clip_by_global_norm(grads, self.clip_norm)
+        if self.clip_value is not None:
+            raise ConfigurationError("Tensorflow does not permit clipping by value for sparse tensors."
+                                     "This slows down training of embedding based models; please use"
+                                     "clip_norm instead.")
+        opt_update = self.optimizer.apply_gradients(grads, global_step=self.iterations)
+        self.updates.append(opt_update)
+        return self.updates
 
-            self.updates.append(opt_update)
-            return self.updates
+    @property
+    def weights(self):
+        raise NotImplementedError
 
-        @property
-        def weights(self):
-            raise NotImplementedError
+    def get_config(self):
+        raise NotImplementedError
 
-        def get_config(self):
-            raise NotImplementedError
+    def from_config(self, config):
+        raise NotImplementedError
 
-        def from_config(self, config):
-            raise NotImplementedError
 
-    def callable_wrapper(optimiser: optimizer.Optimizer, name: str):
-        """
-        This allows arguments to be unpacked into the tensorflow
-        optimiser if required, but first splits off the "clipnorm" and "clipvalue"
-        optional arguments and passes those to the ``TFOptimizer`` wrapper class.
-        This makes the interface to Tensorflow optimisers identical to Keras ones.
+def callable_wrapper(optimiser: optimizer.Optimizer, name: str):
+    """
+    This allows arguments to be unpacked into the tensorflow
+    optimiser if required, but first splits off the "clipnorm" and "clipvalue"
+    optional arguments and passes those to the ``TFOptimizer`` wrapper class.
+    This makes the interface to Tensorflow optimisers identical to Keras ones.
 
-        :param optimiser: An instance of a tensorflow optimiser.
-        :param name: The name of the optimiser class. Just used to get default learning rates
-          if they aren't present.
-        :return: A callable optimiser which takes a dictionary of inputs.
-        """
-        # Keras has default values for all of the optimiser classes, but tensorflow is
-        # missing some. Here we set them to the default values(from Keras) if they
-        # are not passed as arguments.
-        default_learning_rates = {"sgd": 0.01, "rmsprop": 0.001, "adagrad": 0.01}
+    :param optimiser: An instance of a tensorflow optimiser.
+    :param name: The name of the optimiser class. Just used to get default learning rates
+      if they aren't present.
+    :return: A callable optimiser which takes a dictionary of inputs.
+    """
+    # Keras has default values for all of the optimiser classes, but tensorflow is
+    # missing some. Here we set them to the default values(from Keras) if they
+    # are not passed as arguments.
+    default_learning_rates = {"sgd": 0.01, "rmsprop": 0.001, "adagrad": 0.01}
 
-        def callable_optimiser(**kwargs):
-            clipnorm = kwargs.pop("clipnorm", None)
-            clipvalue = kwargs.pop("clipvalue", None)
-            learning_rate = kwargs.get("learning_rate", None)
+    def callable_optimiser(**kwargs):
+        clipnorm = kwargs.pop("clipnorm", None)
+        clipvalue = kwargs.pop("clipvalue", None)
+        learning_rate = kwargs.get("learning_rate", None)
 
-            if learning_rate is None and name in default_learning_rates.keys():
-                kwargs["learning_rate"] = default_learning_rates[name]
+        if learning_rate is None and name in default_learning_rates.keys():
+            kwargs["learning_rate"] = default_learning_rates[name]
 
-            return TFOptimizer(optimiser(**kwargs), clipnorm=clipnorm, clipvalue=clipvalue)
-        return callable_optimiser
+        return TFOptimizer(optimiser(**kwargs), clipnorm=clipnorm, clipvalue=clipvalue)
+    return callable_optimiser
 
-    optimizers = {  # pylint: disable=invalid-name
+optimizers = {  # pylint: disable=invalid-name
         'sgd': callable_wrapper(gradient_descent.GradientDescentOptimizer, "sgd"),
         'rmsprop': callable_wrapper(rmsprop.RMSPropOptimizer, "rmsprop"),
         'adagrad': callable_wrapper(adagrad.AdagradOptimizer, "adagrad"),
@@ -119,18 +117,7 @@ if K.backend() == "tensorflow":
         'adam': callable_wrapper(adam.AdamOptimizer, "adam"),
         'adamax': Adamax,
         'nadam': Nadam,
-    }
-else:
-
-    optimizers = {  # pylint: disable=invalid-name
-            'sgd': SGD,
-            'rmsprop': RMSprop,
-            'adagrad': Adagrad,
-            'adadelta': Adadelta,
-            'adam': Adam,
-            'adamax': Adamax,
-            'nadam': Nadam,
-            }
+}
 
 
 def optimizer_from_params(params: Union[Params, str]):
@@ -145,6 +132,8 @@ def optimizer_from_params(params: Union[Params, str]):
 
     """
     if isinstance(params, str) and params in optimizers.keys():
-        return params
-    optimizer = params.pop_choice("type", optimizers.keys())
-    return optimizers[optimizer](**params)
+        optimizer_type = params
+        params = {}
+    else:
+        optimizer_type = params.pop_choice("type", optimizers.keys())
+    return optimizers[optimizer_type](**params)

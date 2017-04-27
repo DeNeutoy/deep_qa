@@ -42,4 +42,12 @@ class TestAdaptiveMemoryNetwork(DeepQaTestCase):
         model = solver._build_model()
         tf_trainable_variables = tf.trainable_variables()
         keras_trainable_variables = model.trainable_weights
-        assert [x.name for x in tf_trainable_variables] == [x.name for x in keras_trainable_variables]
+
+        tf_variable_names = [str(x.name) for x in tf_trainable_variables]
+        # First variable is for the optimiser, which don't get included by Keras
+        # as they are not technically part of the model.
+        tf_variable_names = tf_variable_names[1:]
+
+        keras_variable_names = [str(x.name) for x in keras_trainable_variables]
+        print(keras_variable_names)
+        assert keras_variable_names == tf_variable_names
