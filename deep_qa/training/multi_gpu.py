@@ -7,9 +7,13 @@ import tensorflow as tf
 def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
 
     """
-    :param model: An instance of a DeepQaModel.
-    :param gpu_count: The number of GPUs to duplicate the model across.
-    :return: A new DeepQaModel, consisting of model_duplicates over
+    Parameters
+    ----------
+    model: An instance of a DeepQaModel.
+    gpu_count: The number of GPUs to duplicate the model across.
+
+    Output:
+    - A new DeepQaModel, consisting of model_duplicates over
         the number of available GPUs.
     """
     # Argument to a Lambda layer which will slice our large batches
