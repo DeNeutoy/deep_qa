@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ARISTO_BINARY=~/clone/aristo/bin/aristo
+#ARISTO_BINARY=~/clone/aristo/bin/aristo
 
 CONTAINER_NAME=$1
 PARAM_FILE=$2
@@ -13,10 +13,16 @@ fi
 
 set -e
 
-docker pull allenai-docker-private-docker.bintray.io/cuda:8
+# Get temporary ecr login.
+eval $(aws --region=us-west-2 ecr get-login)
 
-docker build -t allenai-docker-private-docker.bintray.io/$CONTAINER_NAME . --build-arg PARAM_FILE=$PARAM_FILE
+docker pull 896129387501.dkr.ecr.us-west-2.amazonaws.com/infrastructure/aristo/cuda:8
 
-docker push allenai-docker-private-docker.bintray.io/$CONTAINER_NAME
+# Create container - we can't push to a conatiner which doesn't exist, unlike bintray.
+aws --region=us-west-2 ecr create-repository --repository-name $CONTAINER_NAME
 
-$ARISTO_BINARY runonce --gpu allenai-docker-private-docker.bintray.io/$CONTAINER_NAME
+docker build -t $CONTAINER_NAME . --build-arg PARAM_FILE=$PARAM_FILE
+
+docker push 896129387501.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME
+
+$ARISTO_BINARY runonce --gpu 896129387501.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME
