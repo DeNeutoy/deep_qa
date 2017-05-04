@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#ARISTO_BINARY=~/clone/aristo/bin/aristo
+ARISTO_BINARY=~/clone/aristo/bin/aristo
 
 CONTAINER_NAME=$1
 PARAM_FILE=$2
@@ -21,7 +21,7 @@ docker pull 896129387501.dkr.ecr.us-west-2.amazonaws.com/infrastructure/aristo/c
 # Create container - we can't push to a conatiner which doesn't exist,
 # unlike bintray, but we also can't create a container which does exist,
 # so we have to check if it is there first.
-if [aws --region=us-west-2 ecr describe-repositories | grep -o "\"repositoryName\": *\"$CONTAINER_NAME\""] ; then
+if aws --region=us-west-2 ecr describe-repositories | grep -q " \"repositoryName\": *\"$CONTAINER_NAME\"" ; then
     echo "Repository exists - building image."
 else
     echo "Creating repository:"
