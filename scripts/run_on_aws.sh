@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ARISTO_BINARY=~/clone/aristo/bin/aristo
+ECR_REPOSITORY=896129387501.dkr.ecr.us-west-2.amazonaws.com
 
 CONTAINER_NAME=$1
 PARAM_FILE=$2
@@ -16,7 +17,7 @@ set -e
 # Get temporary ecr login.
 eval $(aws --region=us-west-2 ecr get-login)
 
-docker pull 896129387501.dkr.ecr.us-west-2.amazonaws.com/infrastructure/aristo/cuda:8
+docker pull $ECR_REPOSITORY/infrastructure/aristo/cuda:8
 
 # Create container - we can't push to a conatiner which doesn't exist,
 # unlike bintray, but we also can't create a container which does exist,
@@ -28,7 +29,7 @@ else
     aws --region=us-west-2 ecr create-repository --repository-name $CONTAINER_NAME
 fi
 
-docker build -t 896129387501.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME . --build-arg PARAM_FILE=$PARAM_FILE
-docker push 896129387501.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME
+docker build -t $ECR_REPOSITORY/$CONTAINER_NAME . --build-arg PARAM_FILE=$PARAM_FILE
+docker push $ECR_REPOSITORY/$CONTAINER_NAME
 
-$ARISTO_BINARY runonce --gpu 896129387501.dkr.ecr.us-west-2.amazonaws.com/$CONTAINER_NAME
+$ARISTO_BINARY runonce --gpu $ECR_REPOSITORY/$CONTAINER_NAME
