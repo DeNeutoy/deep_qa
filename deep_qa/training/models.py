@@ -1,5 +1,5 @@
-import logging
 from overrides import overrides
+import logging
 
 from keras.models import Model, Sequential
 import keras.backend as K
@@ -190,3 +190,40 @@ def count_total_params(layers, layer_set=None):
         else:
             total_params += layer.count_params()
     return total_params
+
+
+def _slice_arrays(arrays, start=None, stop=None):
+    """Slice an array or list of arrays.
+
+    This takes an array-like, or a list of
+    array-likes, and outputs:
+        - arrays[start:stop] if `arrays` is an array-like
+        - [x[start:stop] for x in arrays] if `arrays` is a list
+
+    Can also work on list/array of indices: `_slice_arrays(x, indices)`
+
+    # Arguments
+        arrays: Single array or list of arrays.
+        start: can be an integer index (start index)
+            or a list/array of indices
+        stop: integer (stop index); should be None if
+            `start` was a list.
+
+    # Returns
+        A slice of the array(s).
+    """
+    if isinstance(arrays, list):
+        if hasattr(start, '__len__'):
+            # hdf5 datasets only support list objects as indices
+            if hasattr(start, 'shape'):
+                start = start.tolist()
+            return [x[start] for x in arrays]
+        else:
+            return [x[start:stop] for x in arrays]
+    else:
+        if hasattr(start, '__len__'):
+            if hasattr(start, 'shape'):
+                start = start.tolist()
+            return arrays[start]
+        else:
+            return arrays[start:stop]
