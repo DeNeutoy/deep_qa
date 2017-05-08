@@ -1,5 +1,6 @@
 from overrides import overrides
 
+import keras.backend as K
 from keras.models import Model, Sequential
 
 
@@ -28,6 +29,34 @@ class DeepQaModel(Model):
         flattened_layers = getattr(self, 'flattened_layers', self.layers)
         print_summary_with_masking(flattened_layers, getattr(self, 'container_nodes', None))
 
+    @overrides
+    def compile(self, optimizer, loss, metrics=None, loss_weights=None,
+                sample_weight_mode=None, **kwargs):
+        """
+        The only reason we are overriding this method is because keras automatically wraps
+        our tensorflow optimiser in a keras wrapper, which we don't want. We override the
+        only method in Model which uses this attribute, ``_make_train_function``, which
+        raises an error if compile is not called first, so we should be ok.
+        """
+        super(DeepQaModel, self).compile(optimizer, loss, metrics=None, loss_weights=None,
+                                         sample_weight_mode=None, **kwargs)
+        self.optimizer = optimizer
+
+    @overrides
+    def _make_train_function(self):
+        if not hasattr(self, 'train_function'):
+            raise RuntimeError('You must compile your model before using it.')
+        if self.train_function is None:
+            inputs = self._feed_inputs + self._feed_targets + self._feed_sample_weights
+            if self.uses_learning_phase and not isinstance(K.learning_phase(), int):
+                inputs += [K.learning_phase()]
+
+            self.global_step = K.variable(0., name='global_step')
+            grads = self.optimizer.compute_gradients(self.total_loss, self._collected_trainable_weights)
+            training_updates = self.optimizer.apply_gradients(grads, global_step=self.global_step)
+            updates = self.updates + [training_updates]
+            # Gets loss and metrics. Updates weights at each call.
+            self.train_function = K.Function(inputs, [self.total_loss] + self.metrics_tensors, updates=updates)
 
 def print_summary_with_masking(layers, relevant_nodes=None):
     line_length = 150
