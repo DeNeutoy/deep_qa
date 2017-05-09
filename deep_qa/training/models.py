@@ -41,11 +41,12 @@ class DeepQaModel(Model):
         """
         The only reason we are overriding this method is because keras automatically wraps
         our tensorflow optimiser in a keras wrapper, which we don't want. We override the
-        only method in Model which uses this attribute, ``_make_train_function``, which
+        only method in ``Model`` which uses this attribute, ``_make_train_function``, which
         raises an error if compile is not called first.
         """
         optimizer = params.get('optimizer')
         self.gradient_clipping = params.pop("gradient_clipping", None)
+        print(self.gradient_clipping.as_dict())
         super(DeepQaModel, self).compile(**params.as_dict())
         self.optimizer = optimizer
 
@@ -64,10 +65,12 @@ class DeepQaModel(Model):
 
             # Here we override Keras to use tensorflow optimizers directly.
             self.global_step = K.variable(0., name='global_step')
-            grads = self.optimizer.compute_gradients(self.total_loss, self._collected_trainable_weights)
+            grads = tensorflow.gradients(self.total_loss, self._collected_trainable_weights)
             if self.gradient_clipping is not None:
-                clip_type = self.gradient_clipping.pop("type")
-                clip_value = self.gradient_clipping.pop("value")
+                # Don't pop from the gradient clipping dict here as
+                # when we load models we need it to still be there.
+                clip_type = self.gradient_clipping.get("type")
+                clip_value = self.gradient_clipping.get("value")
                 if clip_type == 'clip_by_norm':
                     grads, _ = tensorflow.clip_by_global_norm(grads, clip_value)
                 elif clip_type == 'clip_by_value':
@@ -75,7 +78,8 @@ class DeepQaModel(Model):
                 else:
                     raise ConfigurationError("{} is not a supported type of gradient clipping.".format(clip_type))
 
-            training_updates = self.optimizer.apply_gradients(grads, global_step=self.global_step)
+            zipped_grads_with_weights = zip(grads, self._collected_trainable_weights)
+            training_updates = self.optimizer.apply_gradients(zipped_grads_with_weights, global_step=self.global_step)
             updates = self.updates + [training_updates]
             # Gets loss and metrics. Updates weights at each call.
             self.train_function = K.Function(inputs, [self.total_loss] + self.metrics_tensors, updates=updates)
