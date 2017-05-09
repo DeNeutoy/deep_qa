@@ -17,12 +17,13 @@ of things really well. It just has a few quirks...
 import logging
 from typing import Union
 
+# pylint: disable=no-name-in-module
 from tensorflow.python.training.gradient_descent import GradientDescentOptimizer
 from tensorflow.python.training.rmsprop import RMSPropOptimizer
 from tensorflow.python.training.adadelta import AdadeltaOptimizer
 from tensorflow.python.training.adagrad import AdagradOptimizer
 from tensorflow.python.training.adam import AdamOptimizer
-
+# pylint: enable=no-name-in-module
 from ..common.params import Params
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name

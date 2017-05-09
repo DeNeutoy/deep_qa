@@ -1,5 +1,5 @@
-from overrides import overrides
 import logging
+from overrides import overrides
 
 from keras.models import Model, Sequential
 import keras.backend as K
@@ -36,13 +36,17 @@ class DeepQaModel(Model):
         print_summary_with_masking(flattened_layers, getattr(self, 'container_nodes', None))
 
     @overrides
-    def compile(self, params: Params):
-
+    def compile(self, params: Params):  # pylint: disable=arguments-differ
+        # pylint: disable=attribute-defined-outside-init
         """
         The only reason we are overriding this method is because keras automatically wraps
         our tensorflow optimiser in a keras wrapper, which we don't want. We override the
         only method in ``Model`` which uses this attribute, ``_make_train_function``, which
         raises an error if compile is not called first.
+
+        As we move towards using a Tensorflow first optimisation loop, more things will be
+        added here which add functionality to the way Keras runs tensorflow Session calls.
+
         """
         optimizer = params.get('optimizer')
         self.gradient_clipping = params.pop("gradient_clipping", None)
@@ -52,6 +56,7 @@ class DeepQaModel(Model):
 
     @overrides
     def _make_train_function(self):
+        # pylint: disable=attribute-defined-outside-init
         """
         We override this method so that we can use tensorflow optimisers directly.
         This is desirable as tensorflow handles gradients of sparse tensors efficiently.
@@ -79,7 +84,9 @@ class DeepQaModel(Model):
                     raise ConfigurationError("{} is not a supported type of gradient clipping.".format(clip_type))
 
             zipped_grads_with_weights = zip(grads, self._collected_trainable_weights)
-            training_updates = self.optimizer.apply_gradients(zipped_grads_with_weights, global_step=self.global_step)
+            # pylint: disable=no-member
+            training_updates = self.optimizer.apply_gradients(zipped_grads_with_weights,
+                                                              global_step=self.global_step)
             updates = self.updates + [training_updates]
             # Gets loss and metrics. Updates weights at each call.
             self.train_function = K.Function(inputs, [self.total_loss] + self.metrics_tensors, updates=updates)

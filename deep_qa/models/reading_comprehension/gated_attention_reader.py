@@ -1,7 +1,6 @@
 from typing import Dict
 from overrides import overrides
 from keras.layers import Input, Dropout, Concatenate
-from keras.callbacks import LearningRateScheduler
 
 from ...data.instances.reading_comprehension.mc_question_passage_instance import McQuestionPassageInstance
 from ...common.checks import ConfigurationError
