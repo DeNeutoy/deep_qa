@@ -690,5 +690,5 @@ class Trainer:
                 'gradient_clipping': self.gradient_clipping,
                 'loss': self.loss,
                 'optimizer': self.optimizer,
-                'metrics': self.metrics
+                'metrics': self.metrics,
                 })

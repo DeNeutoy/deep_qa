@@ -12,8 +12,16 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class DeepQaModel(Model):
     """
-    This is a Model that adds a little bit more functionality than is present in Keras Models.
+    This is a Model that adds functionality to Keras' ``Model`` class. In
+    particular, we use tensorflow optimisers directly in order to make use
+    of sparse gradient updates, which Keras does not handle. Additionally,
+    we provide some nicer summary functions which include mask information.
+    We are overriding key components of Keras here and you should probably
+    have a pretty good grip on the internals of Keras before you change
+    stuff below, as there could be unexpected consequences.
     """
+
+    # TODO(Mark): Tensorflow optimisers are not compatible with Keras' LearningRateScheduler.
     def __init__(self, *args, **kwargs):
         super(DeepQaModel, self).__init__(*args, **kwargs)
 
@@ -43,14 +51,12 @@ class DeepQaModel(Model):
         our tensorflow optimiser in a keras wrapper, which we don't want. We override the
         only method in ``Model`` which uses this attribute, ``_make_train_function``, which
         raises an error if compile is not called first.
-
         As we move towards using a Tensorflow first optimisation loop, more things will be
         added here which add functionality to the way Keras runs tensorflow Session calls.
 
         """
         optimizer = params.get('optimizer')
-        self.gradient_clipping = params.pop("gradient_clipping", None)
-        print(self.gradient_clipping.as_dict())
+        self.gradient_clipping = params.pop("gradient_clipping", None).as_dict()
         super(DeepQaModel, self).compile(**params.as_dict())
         self.optimizer = optimizer
 
@@ -70,23 +76,24 @@ class DeepQaModel(Model):
 
             # Here we override Keras to use tensorflow optimizers directly.
             self.global_step = K.variable(0., name='global_step')
-            grads = tensorflow.gradients(self.total_loss, self._collected_trainable_weights)
+            gradients = tensorflow.gradients(self.total_loss, self._collected_trainable_weights)
             if self.gradient_clipping is not None:
                 # Don't pop from the gradient clipping dict here as
-                # when we load models we need it to still be there.
+                # if we call fit more than once we need it to still be there.
                 clip_type = self.gradient_clipping.get("type")
                 clip_value = self.gradient_clipping.get("value")
                 if clip_type == 'clip_by_norm':
-                    grads, _ = tensorflow.clip_by_global_norm(grads, clip_value)
+                    gradients, _ = tensorflow.clip_by_global_norm(gradients, clip_value)
                 elif clip_type == 'clip_by_value':
-                    grads = [tensorflow.clip_by_value(x, -clip_value, clip_value) for x in grads]
+                    gradients = [tensorflow.clip_by_value(x, -clip_value, clip_value) for x in gradients]
                 else:
                     raise ConfigurationError("{} is not a supported type of gradient clipping.".format(clip_type))
 
-            zipped_grads_with_weights = zip(grads, self._collected_trainable_weights)
+            zipped_grads_with_weights = zip(gradients, self._collected_trainable_weights)
             # pylint: disable=no-member
             training_updates = self.optimizer.apply_gradients(zipped_grads_with_weights,
                                                               global_step=self.global_step)
+            # pylint: enable=no-member
             updates = self.updates + [training_updates]
             # Gets loss and metrics. Updates weights at each call.
             self.train_function = K.Function(inputs, [self.total_loss] + self.metrics_tensors, updates=updates)
