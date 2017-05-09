@@ -1,7 +1,13 @@
 from overrides import overrides
+import logging
 
-import keras.backend as K
 from keras.models import Model, Sequential
+import keras.backend as K
+import tensorflow
+
+from ..common.params import Params, ConfigurationError
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class DeepQaModel(Model):
@@ -30,20 +36,25 @@ class DeepQaModel(Model):
         print_summary_with_masking(flattened_layers, getattr(self, 'container_nodes', None))
 
     @overrides
-    def compile(self, optimizer, loss, metrics=None, loss_weights=None,
-                sample_weight_mode=None, **kwargs):
+    def compile(self, params: Params):
+
         """
         The only reason we are overriding this method is because keras automatically wraps
         our tensorflow optimiser in a keras wrapper, which we don't want. We override the
         only method in Model which uses this attribute, ``_make_train_function``, which
-        raises an error if compile is not called first, so we should be ok.
+        raises an error if compile is not called first.
         """
-        super(DeepQaModel, self).compile(optimizer, loss, metrics=None, loss_weights=None,
-                                         sample_weight_mode=None, **kwargs)
+        optimizer = params.get('optimizer')
+        self.gradient_clipping = params.pop("gradient_clipping", None)
+        super(DeepQaModel, self).compile(**params.as_dict())
         self.optimizer = optimizer
 
     @overrides
     def _make_train_function(self):
+        """
+        We override this method so that we can use tensorflow optimisers directly.
+        This is desirable as tensorflow handles gradients of sparse tensors efficiently.
+        """
         if not hasattr(self, 'train_function'):
             raise RuntimeError('You must compile your model before using it.')
         if self.train_function is None:
@@ -51,12 +62,24 @@ class DeepQaModel(Model):
             if self.uses_learning_phase and not isinstance(K.learning_phase(), int):
                 inputs += [K.learning_phase()]
 
+            # Here we override Keras to use tensorflow optimizers directly.
             self.global_step = K.variable(0., name='global_step')
             grads = self.optimizer.compute_gradients(self.total_loss, self._collected_trainable_weights)
+            if self.gradient_clipping is not None:
+                clip_type = self.gradient_clipping.pop("type")
+                clip_value = self.gradient_clipping.pop("value")
+                if clip_type == 'clip_by_norm':
+                    grads, _ = tensorflow.clip_by_global_norm(grads, clip_value)
+                elif clip_type == 'clip_by_value':
+                    grads = [tensorflow.clip_by_value(x, -clip_value, clip_value) for x in grads]
+                else:
+                    raise ConfigurationError("{} is not a supported type of gradient clipping.".format(clip_type))
+
             training_updates = self.optimizer.apply_gradients(grads, global_step=self.global_step)
             updates = self.updates + [training_updates]
             # Gets loss and metrics. Updates weights at each call.
             self.train_function = K.Function(inputs, [self.total_loss] + self.metrics_tensors, updates=updates)
+
 
 def print_summary_with_masking(layers, relevant_nodes=None):
     line_length = 150
