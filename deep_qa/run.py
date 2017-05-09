@@ -2,10 +2,6 @@ from typing import Union, List
 import sys
 import logging
 import shutil
-<<<<<<< HEAD
-import os
-=======
->>>>>>> upstream/master
 
 import random
 import pyhocon
