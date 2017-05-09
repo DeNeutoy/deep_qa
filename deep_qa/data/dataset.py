@@ -3,10 +3,12 @@ import itertools
 import logging
 from typing import Dict, List
 
+import numpy
 import tqdm
 
-from .instances.instance import Instance, TextInstance, IndexedInstance
+from ..common.util import add_noise_to_dict_values
 from .data_indexer import DataIndexer
+from .instances.instance import Instance, TextInstance, IndexedInstance
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -98,7 +100,7 @@ class IndexedDataset(Dataset):
     def __init__(self, instances: List[IndexedInstance]):
         super(IndexedDataset, self).__init__(instances)
 
-    def sort_by_padding(self, sorting_keys: List[str]):
+    def sort_by_padding(self, sorting_keys: List[str], padding_noise: float=0.0):
         """
         Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
         ``sorting_keys`` (in the order in which they are provided).
@@ -106,6 +108,8 @@ class IndexedDataset(Dataset):
         instances_with_lengths = []
         for instance in self.instances:
             padding_lengths = instance.get_padding_lengths()
+            if padding_noise > 0.0:
+                padding_lengths = add_noise_to_dict_values(padding_lengths, padding_noise)
             instance_with_lengths = [padding_lengths[key] for key in sorting_keys] + [instance]
             instances_with_lengths.append(instance_with_lengths)
         instances_with_lengths.sort(key=lambda x: x[:-1])
@@ -157,6 +161,7 @@ class IndexedDataset(Dataset):
         # given a max length for a particular dimension.  If we were, we use that instead of the
         # instance-based one.
         if verbose:
+            logger.info("Padding dataset of size %d to lengths %s", len(self.instances), str(padding_lengths))
             logger.info("Getting max lengths from instances")
         instance_padding_lengths = self.padding_lengths()
         if verbose:
@@ -177,9 +182,10 @@ class IndexedDataset(Dataset):
 
     def as_training_data(self):
         """
-        Takes each IndexedInstance and converts it into (inputs, labels), according to the
-        Instance's as_training_data() method.  Note that you might need to call numpy.asarray() on
-        the results of this; we don't do that for you, because the inputs might be complicated.
+        Takes each ``IndexedInstance`` and converts it into (inputs, labels), according to the
+        Instance's as_training_data() method.  Both the inputs and the labels are numpy arrays.
+        Note that if the ``Instances`` return tuples for their inputs, we convert the list of
+        tuples into a tuple of lists, before converting everything to numpy arrays.
         """
         inputs = []
         labels = []
@@ -188,4 +194,12 @@ class IndexedDataset(Dataset):
             instance_inputs, label = instance.as_training_data()
             inputs.append(instance_inputs)
             labels.append(label)
+        if isinstance(inputs[0], tuple):
+            inputs = [numpy.asarray(x) for x in zip(*inputs)]
+        else:
+            inputs = numpy.asarray(inputs)
+        if isinstance(labels[0], tuple):
+            labels = [numpy.asarray(x) for x in zip(*labels)]
+        else:
+            labels = numpy.asarray(labels)
         return inputs, labels

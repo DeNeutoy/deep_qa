@@ -4,7 +4,7 @@
 #### ESSENTIAL LIBRARIES FOR MAIN FUNCTIONALITY ####
 
 # Neural net and related libraries.
-keras>=2.0.3
+keras==2.0.3
 h5py
 scikit-learn
 
@@ -72,7 +72,7 @@ codecov
 argparse
 
 # Used to read the NewsQA CSV and output a clean one.
-pandas
+pandas==0.19.2
 
 # progress bars in data cleaning scripts
 tqdm

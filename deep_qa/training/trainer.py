@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 from typing import Any, Dict, List, Tuple
 
@@ -31,7 +30,7 @@ class Trainer:
     The intended use of this class is that you construct a subclass that defines a model,
     overriding the abstract methods and (optionally) some of the protected methods in this class.
     Thus there are four kinds of methods in this class: (1) public methods, that are typically only
-    used by ``scripts/run_model.py`` (or some other driver that you create), (2) abstract methods
+    used by ``deep_qa/run.py`` (or some other driver that you create), (2) abstract methods
     (beginning with ``_``), which `must` be overridden by any concrete subclass, (3) protected
     methods (beginning with ``_``) that you are meant to override in concrete subclasses, and (4)
     private methods (beginning with ``__``) that you should not need to mess with.  We only include
@@ -271,13 +270,14 @@ class Trainer:
         if self.update_model_state_with_training_data:
             self.set_model_state_from_indexed_dataset(indexed_training_dataset)
         self.training_arrays = self.create_data_arrays(indexed_training_dataset)
+        if self._uses_data_generators():
+            self.train_steps_per_epoch = self.data_generator.last_num_batches  # pylint: disable=no-member
 
         if self.validation_files:
             self.validation_dataset, self.validation_arrays = self.load_data_arrays(self.validation_files,
                                                                                     self.max_validation_instances)
-        if self.test_files:
-            self.test_dataset, self.test_arrays = self.load_data_arrays(self.test_files,
-                                                                        self.max_test_instances)
+        if self._uses_data_generators():
+            self.validation_steps = self.data_generator.last_num_batches  # pylint: disable=no-member
 
         # Then we build the model and compile it.
         logger.info("Building the model")
@@ -326,13 +326,8 @@ class Trainer:
             # arguments right.
             kwargs.pop('batch_size')
             kwargs['steps_per_epoch'] = self.train_steps_per_epoch
-            if kwargs['steps_per_epoch'] is None:
-                kwargs['steps_per_epoch'] = math.ceil(len(self.training_dataset.instances) / self.batch_size)
             if self.validation_arrays is not None and self._uses_data_generators():
                 kwargs['validation_steps'] = self.validation_steps
-                if kwargs['validation_steps'] is None:
-                    kwargs['validation_steps'] = math.ceil(len(self.validation_dataset.instances) /
-                                                           self.batch_size)
             history = self.model.fit_generator(self.training_arrays, **kwargs)
 
         # After finishing training, we save the best weights and
@@ -344,21 +339,7 @@ class Trainer:
 
         # If there are test files, we evaluate on the test data.
         if self.test_files:
-            self.load_model()
-            logger.info("Evaluting model on the test set.")
-            if not self._uses_data_generators():
-                scores = self.model.evaluate(self.test_arrays[0], self.test_arrays[1])
-            else:
-                test_steps = self.test_steps
-                if test_steps is None:
-                    test_steps = math.ceil(len(self.test_dataset.instances) / self.batch_size)
-                scores = self.model.evaluate_generator(self.test_arrays, test_steps)
-            for idx, metric in enumerate(self.model.metrics_names):
-                print("{}: {}".format(metric, scores[idx]))
-
-    def score_dataset(self, dataset: Dataset):
-        inputs, _ = self.create_data_arrays(dataset)
-        return self.model.predict(inputs)
+            self.evaluate_model(self.test_files, self.max_test_instances)
 
     def load_model(self, epoch: int=None):
         """
@@ -385,9 +366,40 @@ class Trainer:
         self.model.compile(self.__compile_kwargs())
         self.update_model_state_with_training_data = False
 
+    def evaluate_model(self, data_files: List[str], max_instances: int=None):
+        # We call self.load_model() first, to be sure that we load the best model we have, if we've
+        # trained for a while.
+        self.load_model()
+        _, arrays = self.load_data_arrays(data_files, max_instances)
+        logger.info("Evaluting model on the test set.")
+        if not self._uses_data_generators():
+            scores = self.model.evaluate(arrays[0], arrays[1])
+        else:
+            steps = self.data_generator.last_num_batches  # pylint: disable=no-member
+            scores = self.model.evaluate_generator(arrays, steps)
+        for idx, metric in enumerate(self.model.metrics_names):
+            print("{}: {}".format(metric, scores[idx]))
+
     ##################
     # Abstract methods - you MUST override these
     ##################
+
+    def score_dataset(self, dataset: Dataset) -> List[Any]:
+        """
+        Takes a `Dataset`, indexes it, and returns the output of evaluating the model on all
+        instances. The return type here depends on the output of your model.
+
+        Parameters
+        ----------
+        dataset: Dataset
+            A ``Dataset`` read by `:func:`~Trainer.load_dataset_from_files()`.
+
+        Returns
+        -------
+        Predictions for each ``Instance`` in the ``Dataset``. The actual type depends on
+        the output of your model.
+        """
+        raise NotImplementedError
 
     def load_dataset_from_files(self, files: List[str]) -> Dataset:
         """
