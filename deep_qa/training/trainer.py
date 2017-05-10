@@ -297,7 +297,6 @@ class Trainer:
 
         self.model.summary(show_masks=self.show_summary_with_masking)
         self.model.compile(self.__compile_kwargs())
-        self.model.compile(**self.__compile_kwargs())
 
         if self.debug_params:
             # Get the list of layers whose outputs will be visualized as per the
