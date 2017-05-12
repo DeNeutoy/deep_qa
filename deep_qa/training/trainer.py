@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 import numpy
 from keras.models import model_from_json
 from keras.callbacks import LambdaCallback, TensorBoard, EarlyStopping, CallbackList, ModelCheckpoint
-
+from ..training.callbacks import ReplicaModelCheckpoint
 from ..common.checks import ConfigurationError
 from ..common.params import Params
 from ..data.dataset import Dataset, IndexedDataset
@@ -533,9 +533,11 @@ class Trainer:
         # Some witchcraft is happening here - we don't specify the epoch replacement variable
         # checkpointing string, because Keras does that within the callback if we specify it here.
         if self.save_models:
+
+            #checkpoint_callback = ReplicaModelCheckpoint if self.num_gpus > 1 else ModelCheckpoint
             checkpointing = ModelCheckpoint(self.model_prefix + "_weights_epoch={epoch:d}.h5",
-                                            save_best_only=True, save_weights_only=True,
-                                            monitor=self.validation_metric)
+                                                save_best_only=True, save_weights_only=True,
+                                                monitor=self.validation_metric)
             callbacks.append(checkpointing)
 
         return CallbackList(callbacks)

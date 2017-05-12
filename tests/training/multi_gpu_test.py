@@ -1,9 +1,11 @@
 # pylint: disable=no-self-use,invalid-name
 
 
-import tensorflow
+from copy import deepcopy
 import keras.backend as K
-from deep_qa.common.params import Params, pop_choice
+import tensorflow
+from deep_qa.training.multi_gpu import pin_variable_device_scope
+from deep_qa.common.params import Params
 from deep_qa.models.text_classification import ClassificationModel
 from ..common.test_case import DeepQaTestCase
 
@@ -22,15 +24,38 @@ class TestMultiGpu(DeepQaTestCase):
                     'show_summary_with_masking_info': True,
             })
 
-    def test_model_can_train(self):
+    def test_model_can_train_and_load(self):
+        self.ensure_model_trains_and_loads(ClassificationModel, self.args)
+
+    def test_pinned_scope_correctly_allocates_ops(self):
+
+        scope_function = pin_variable_device_scope(device="/gpu:0", parameter_device="/cpu:0")
+
+        # Should have a cpu scope.
+        variable = tensorflow.Variable([])
+        # Should have a gpu scope.
+        add_op = tensorflow.add(variable, 1.0)
+
+        assert scope_function(variable.op) == "/cpu:0"
+        assert scope_function(add_op.op) == "/gpu:0"
+
+    def test_variables_live_on_cpu(self):
 
         model = self.get_model(ClassificationModel, self.args)
         model.train()
 
+        print(model.model.layers)
+        trainable_variables = model.model.trainable_weights
+
+        for variable in trainable_variables:
+            assert variable.device == "/cpu:0" or variable.device == ""
+
     def test_multi_gpu_shares_variables(self):
 
         multi_gpu_model = self.get_model(ClassificationModel, self.args)
-        self.args['num_gpus'] = 1
+
+        single_gpu_args = deepcopy(self.args)
+        single_gpu_args["num_gpus"] = 1
         single_gpu_model = self.get_model(ClassificationModel, self.args)
 
         multi_gpu_model.train()
