@@ -10,8 +10,8 @@ FLAGS = None
 def main(_):
 
     # Create a cluster from the parameter server and worker hosts.
-    cluster = tf.train.ClusterSpec({"ps": ["markn-cpu.dev.ai2:1234"],
-                                    "worker": ["mark-new-cuda.dev.ai2:1234"]})
+    cluster = tf.train.ClusterSpec({"ps": ["mark-new-cuda.dev.ai2:4004"],
+                                    "worker": ["mark-new-cuda.dev.ai2:1234", "mark-new-cuda.dev.ai2:1235"]})
 
     # Create and start a server for the local task.
     server = tf.train.Server(cluster,
@@ -31,7 +31,7 @@ def main(_):
         # Assigns ops to the local worker by default.
         # Assigns variables to a parameter server, defaulting to ps.
         with tf.device(tf.train.replica_device_setter(
-                worker_device="/job:worker/task:%d" % FLAGS.task_index,
+                worker_device="/job:worker/task:{}/gpu:{}".format(FLAGS.task_index, FLAGS.task_index),
                 cluster=cluster)):
 
             # input images
@@ -77,74 +77,78 @@ def main(_):
 
             summary_op = tf.summary.merge_all()
 
-        ### Initialisation operations for the graph. ###
+            ### Initialisation operations for the graph. ###
 
-        variable_init_op = tf.global_variables_initializer()
+            variable_init_op = tf.global_variables_initializer()
 
-        # You can now call get_init_tokens_op() and get_chief_queue_runner().
-        # Note that get_init_tokens_op() must be called before creating session
-        # because it modifies the graph.
-        local_init_op = optimiser.local_step_init_op
+            # You can now call get_init_tokens_op() and get_chief_queue_runner().
+            # Note that get_init_tokens_op() must be called before creating session
+            # because it modifies the graph.
+            local_init_op = optimiser.local_step_init_op
 
-        # Chief has a different init op, as it does more things.
-        if is_chief:
-            local_init_op = optimiser.chief_init_op
-        ready_for_local_init_op = optimiser.ready_for_local_init_op
-        # Initial token and chief queue runners required by the sync_replicas mode
-        chief_queue_runner = optimiser.get_chief_queue_runner()
-        sync_init_op = optimiser.get_init_tokens_op()
+            # Chief has a different init op, as it does more things.
+            if is_chief:
+                local_init_op = optimiser.chief_init_op
+            ready_for_local_init_op = optimiser.ready_for_local_init_op
+            # Initial token and chief queue runners required by the sync_replicas mode
+            chief_queue_runner = optimiser.get_chief_queue_runner()
+            sync_init_op = optimiser.get_init_tokens_op()
 
-        # The StopAtStepHook handles stopping after running given steps.
-        hooks = [tf.train.StopAtStepHook(last_step=1000000)]
+            # The StopAtStepHook handles stopping after running given steps.
+            hooks = [tf.train.StopAtStepHook(last_step=1000000)]
 
-        mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
-        batch_size = 64
+            mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+            batch_size = 64
+            max_steps = 10000
 
-        # Now we create a Supervisor, which ties together some stuff which we need for training,
-        # like initialisation of the workers, finalising the graph etc.
+            # Now we create a Supervisor, which ties together some stuff which we need for training,
+            # like initialisation of the workers, finalising the graph etc.
 
-        saver = tf.train.Saver()
-        supervisor = tf.train.Supervisor(
-            is_chief=is_chief,
-            logdir="./log",
-            saver=saver,
-            summary_op=summary_op,
-            init_op=variable_init_op,
-            local_init_op=local_init_op,
-            ready_for_local_init_op=ready_for_local_init_op,
-            recovery_wait_secs=1,
-            global_step=global_step)
-
-        if is_chief:
-            print("Worker %d: Initializing session..." % FLAGS.task_index)
-        else:
-            print("Worker %d: Waiting for session to be initialized..." % FLAGS.task_index)
-
-        session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
-
-        with supervisor.prepare_or_wait_for_session(server.target, config=session_config) as session:
+            saver = tf.train.Saver()
+            supervisor = tf.train.Supervisor(
+                is_chief=is_chief,
+                logdir="./log",
+                saver=saver,
+                summary_op=summary_op,
+                init_op=variable_init_op,
+                local_init_op=local_init_op,
+                ready_for_local_init_op=ready_for_local_init_op,
+                recovery_wait_secs=1,
+                global_step=global_step)
 
             if is_chief:
-                # Chief worker will start the chief queue runner and call the init op.
-                session.run(sync_init_op)
-                supervisor.start_queue_runners(session, [chief_queue_runner])
+                print("Worker %d: Initializing session..." % FLAGS.task_index)
+            else:
+                print("Worker %d: Waiting for session to be initialized..." % FLAGS.task_index)
 
-            while not session.should_stop():
-                # Run a training step asynchronously.
-                # See `tf.train.SyncReplicasOptimizer` for additional details on how to
-                # perform *synchronous* training.
+            session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
 
-                batch_inputs, batch_targets = mnist.train.next_batch(batch_size)
-                _, cost, step = session.run([train_op, loss, global_step],
-                                            feed_dict={inputs: batch_inputs, targets: batch_targets})
+            with supervisor.prepare_or_wait_for_session(server.target, config=session_config) as session:
 
-                print("Worker: {}, Step: {},  Training Loss: {}".format(FLAGS.task_index, step, cost))
+                if is_chief:
+                    # Chief worker will start the chief queue runner and call the init op.
+                    session.run(sync_init_op)
+                    supervisor.start_queue_runners(session, [chief_queue_runner])
 
-                val_inputs, val_targets = mnist.validation.next_batch(batch_size)
-                val_loss = session.run(loss,
-                                       feed_dict={inputs: val_inputs, targets: val_targets})
+                step = 0
+                while step < max_steps:
+                    # Run a training step asynchronously.
+                    # See `tf.train.SyncReplicasOptimizer` for additional details on how to
+                    # perform *synchronous* training.
 
-                print("Worker: {}, Step: {},  Validation Loss: {}".format(FLAGS.task_index, step, val_loss))
+                    batch_inputs, batch_targets = mnist.train.next_batch(batch_size)
+                    _, cost, step = session.run([train_op, loss, global_step],
+                                                feed_dict={inputs: batch_inputs, targets: batch_targets})
+
+                    print("Worker: {}, Step: {},  Training Loss: {}".format(FLAGS.task_index, step, cost))
+
+                    val_inputs, val_targets = mnist.validation.next_batch(batch_size)
+                    val_loss = session.run(loss,
+                                           feed_dict={inputs: val_inputs, targets: val_targets})
+
+                    print("Worker: {}, Step: {},  Validation Loss: {}".format(FLAGS.task_index, step, val_loss))
+
+                supervisor.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
