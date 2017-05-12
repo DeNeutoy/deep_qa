@@ -1,7 +1,26 @@
 from keras.layers import merge
 from keras.layers.core import Lambda
+import keras.backend as K
 from .models import DeepQaModel
-import tensorflow as tf
+import tensorflow
+
+
+def pin_variable_device_scope(device, parameter_device="/cpu:0"):
+
+    """
+    Tensorflow device scopes can take functions which give a device
+    for a given op in the graph. Here, we use the device that is
+    passed to the scope *unless* the operation which is being created
+    in the graph is a Variable creation op; in this case, we place it
+    on the cpu.
+    """
+    def _assign(op):
+        node_def = op if isinstance(op, tensorflow.NodeDef) else op.node_def
+        if node_def.op in ['Variable', 'VariableV2']:
+            return parameter_device
+        else:
+            return device
+    return _assign
 
 
 def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
@@ -18,21 +37,31 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
     """
     # Argument to a Lambda layer which will slice our large batches
     # along the batch dimension and return a given slice.
-    def get_slice(data, idx, parts):
-        shape = tf.shape(data)
-        size = tf.concat([shape[:1] // parts, shape[1:]], axis=0)
-        stride = tf.concat([shape[:1] // parts, shape[1:] * 0], axis=0)
-        start = stride * idx
-        return tf.slice(data, start, size)
+    def get_slice(data, index, parts):
+        import tensorflow
+        is_last_slice = (index == parts - 1)
 
-    outputs_all = []
+        shape = K.shape(data)
+        batch_shape, feature_shape = shape[:1], shape[1:]
+        stride = K.concatenate([batch_shape // parts, feature_shape * 0], axis=0)
+
+        if not is_last_slice:
+            size = K.concatenate([batch_shape // parts, feature_shape], axis=0)
+        else:
+            # For the last device we take everything.
+            # This deals with the case that big_batch_size % num_gpus != 0.
+            size = K.concatenate([[-1], feature_shape], axis=0)
+        start = stride * index
+        return tensorflow.slice(data, start, size)
+
+    all_outputs = []
     for i in range(len(model.outputs)):
-        outputs_all.append([])
+        all_outputs.append([])
 
     # Place a copy of the model on each GPU, each getting a slice of the batch.
-    for i in range(gpu_count):
-        with tf.device('/gpu:%d' % i):
-            with tf.name_scope('tower_%d' % i):
+    for gpu_index in range(gpu_count):
+        with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
+            with tensorflow.name_scope('tower_%d' % gpu_index):
                 inputs = []
                 # Slice each input into a piece for processing on this GPU.
                 for model_input in model.inputs:
@@ -41,7 +70,7 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
                     output_shape = tuple(model_input.get_shape().as_list())[1:]
                     slice_layer = Lambda(get_slice,
                                          output_shape=output_shape,
-                                         arguments={'idx': i, 'parts': gpu_count})
+                                         arguments={'index': gpu_index, 'parts': gpu_count})
                     slice_n = slice_layer(model_input)
                     inputs.append(slice_n)
 
@@ -50,12 +79,12 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
                     outputs = [outputs]
 
                 # Save all the outputs for merging back together later
-                for output_index in range(len(outputs)):
-                    outputs_all[output_index].append(outputs[output_index])
+                for i in range(len(outputs)):
+                    all_outputs[i].append(outputs[i])
 
-    # merge outputs on CPU
-    with tf.device('/cpu:0'):
+    # merge outputs on CPU.
+    with tensorflow.device('/cpu:0'):
         merged = []
-        for outputs in outputs_all:
+        for outputs in all_outputs:
             merged.append(merge(outputs, mode='concat', concat_axis=0))
         return DeepQaModel(input=model.inputs, output=merged)
