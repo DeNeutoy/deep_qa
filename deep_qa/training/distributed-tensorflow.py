@@ -10,8 +10,9 @@ FLAGS = None
 def main(_):
 
     # Create a cluster from the parameter server and worker hosts.
-    cluster = tf.train.ClusterSpec({"ps": ["mark-new-cuda.dev.ai2:4004"],
-                                    "worker": ["mark-new-cuda.dev.ai2:1234", "mark-new-cuda.dev.ai2:1235"]})
+    cluster = tf.train.ClusterSpec({"ps": ["markn-cpu.dev.ai2:4004"],
+                                    "worker": ["mark-new-cuda.dev.ai2:1234",
+                                               "mattg-gpu.dev.ai2:1234"]})
 
     # Create and start a server for the local task.
     server = tf.train.Server(cluster,
