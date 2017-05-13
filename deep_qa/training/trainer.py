@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy
+import tensorflow
 from keras.models import model_from_json
 from keras.callbacks import LambdaCallback, TensorBoard, EarlyStopping, CallbackList, ModelCheckpoint
 from ..training.callbacks import ReplicaModelCheckpoint
@@ -291,9 +292,9 @@ class Trainer:
         logger.info("Building the model")
         self.model = self._build_model()
 
-        self.model.summary(show_masks=self.show_summary_with_masking)
         if self.num_gpus > 1:
-            self.model = make_parallel(self.model, self.num_gpus)
+            with tensorflow.device("/cpu:0"):
+                self.model = make_parallel(self.model, self.num_gpus)
 
         self.model.summary(show_masks=self.show_summary_with_masking)
         self.model.compile(self.__compile_kwargs())

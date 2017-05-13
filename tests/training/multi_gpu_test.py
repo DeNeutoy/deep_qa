@@ -44,11 +44,11 @@ class TestMultiGpu(DeepQaTestCase):
         model = self.get_model(ClassificationModel, self.args)
         model.train()
 
-        print(model.model.layers)
         trainable_variables = model.model.trainable_weights
-
         for variable in trainable_variables:
-            assert variable.device == "/cpu:0" or variable.device == ""
+            # This is an odd quirk of tensorflow - the devices are actually named
+            # slightly differently from their scopes ... (i.e != "/cpu:0")
+            assert variable.device == "/device:CPU:0" or variable.device == ""
 
     def test_multi_gpu_shares_variables(self):
 
@@ -65,8 +65,6 @@ class TestMultiGpu(DeepQaTestCase):
         single_gpu_model.train()
         single_gpu_variables = [x.name for x in single_gpu_model.model.trainable_weights]
 
-        print("Single GPU:", single_gpu_variables)
-        print("Multi GPU:", multi_gpu_variables)
         assert single_gpu_variables == multi_gpu_variables
 
 
