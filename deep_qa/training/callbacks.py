@@ -1,37 +1,21 @@
 
-
-from keras.callbacks import ModelCheckpoint
 import warnings
+from keras.callbacks import ModelCheckpoint
 from overrides import overrides
 
 
 class ReplicaModelCheckpoint(ModelCheckpoint):
-    """Save the model after every epoch.
-    `filepath` can contain named formatting options,
-    which will be filled the value of `epoch` and
-    keys in `logs` (passed in `on_epoch_end`).
-    For example: if `filepath` is `weights.{epoch:02d}-{val_loss:.2f}.hdf5`,
-    then the model checkpoints will be saved with the epoch number and
-    the validation loss in the filename.
-    # Arguments
-        filepath: string, path to save the model file.
-        monitor: quantity to monitor.
-        verbose: verbosity mode, 0 or 1.
-        save_best_only: if `save_best_only=True`,
-            the latest best model according to
-            the quantity monitored will not be overwritten.
-        mode: one of {auto, min, max}.
-            If `save_best_only=True`, the decision
-            to overwrite the current save file is made
-            based on either the maximization or the
-            minimization of the monitored quantity. For `val_acc`,
-            this should be `max`, for `val_loss` this should
-            be `min`, etc. In `auto` mode, the direction is
-            automatically inferred from the name of the monitored quantity.
-        save_weights_only: if True, then only the model's weights will be
-            saved (`model.save_weights(filepath)`), else the full model
-            is saved (`model.save(filepath)`).
-        period: Interval (number of epochs) between checkpoints.
+    """
+    Save the model after every epoch. See the Keras ModelCheckpoint class for more information
+    about basic usage.
+
+    This Callback is designed to be used with a ``DeepQaModel`` which was parallelised across
+    multiple GPUs. In order to achieve the data parallelism implemented in ``~func:make_parallel``,
+    we use lambda layers to split a large batch into inputs for the models tiled across the
+    GPUs and to aggregate the model outputs. When we are saving the model, we don't want these
+    layers to be present, so we need to retrieve the section of the model which we want to
+    serialise.
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -39,8 +23,17 @@ class ReplicaModelCheckpoint(ModelCheckpoint):
 
     @overrides
     def on_epoch_end(self, epoch, logs=None):
+        """
+        Saves the layer in the multi-gpu model corresponding to the actual DeepQaModel.
+        This layer is always at the -(num_lambda_layers+1)-th index, (the layer after the number
+        of Lambda layers we used to split the data up into batches).
+        """
         logs = logs or {}
+
+        # We have a Lambda layer per GPU, so the total number
+        # is simply the number of model outputs.
         num_lambda_layers = len(self.model.outputs)
+
         self.epochs_since_last_save += 1
         if self.epochs_since_last_save >= self.period:
             self.epochs_since_last_save = 0

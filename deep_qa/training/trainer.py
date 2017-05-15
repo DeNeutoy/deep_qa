@@ -297,7 +297,6 @@ class Trainer:
 
         self.model.summary(show_masks=self.show_summary_with_masking)
         self.model.compile(self.__compile_kwargs())
-        self.model.compile(**self.__compile_kwargs())
 
         if self.debug_params:
             # Get the list of layers whose outputs will be visualized as per the
@@ -535,8 +534,8 @@ class Trainer:
         # checkpointing string, because Keras does that within the callback if we specify it here.
         if self.save_models:
 
-            #checkpoint_callback = ReplicaModelCheckpoint if self.num_gpus > 1 else ModelCheckpoint
-            checkpointing = ModelCheckpoint(self.model_prefix + "_weights_epoch={epoch:d}.h5",
+            checkpoint_callback = ReplicaModelCheckpoint if self.num_gpus > 1 else ModelCheckpoint
+            checkpointing = checkpoint_callback(self.model_prefix + "_weights_epoch={epoch:d}.h5",
                                                 save_best_only=True, save_weights_only=True,
                                                 monitor=self.validation_metric)
             callbacks.append(checkpointing)
@@ -607,7 +606,11 @@ class Trainer:
         Called after training. If you have some auxiliary object, such as an object storing
         the vocabulary of your model, you can save it here. The model config is saved by default.
         """
-        model_config = self.model.to_json()
+        if self.num_gpus > 1:
+
+            model_config = self.model.layers[self.num_gpus + 1].to_json()
+        else:
+            model_config = self.model.to_json()
         model_config_file = open("%s_config.json" % (self.model_prefix), "w")
         print(model_config, file=model_config_file)
         model_config_file.close()

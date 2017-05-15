@@ -1,8 +1,8 @@
 from keras.layers import merge
 from keras.layers.core import Lambda
 import keras.backend as K
-from .models import DeepQaModel
 import tensorflow
+from .models import DeepQaModel
 
 
 def pin_variable_device_scope(device, parameter_device="/cpu:0"):
@@ -14,8 +14,8 @@ def pin_variable_device_scope(device, parameter_device="/cpu:0"):
     in the graph is a Variable creation op; in this case, we place it
     on the cpu.
     """
-    def _assign(op):
-        node_def = op if isinstance(op, tensorflow.NodeDef) else op.node_def
+    def _assign(graph_op):
+        node_def = graph_op if isinstance(graph_op, tensorflow.NodeDef) else graph_op.node_def
         if node_def.op in ['Variable', 'VariableV2']:
             return parameter_device
         else:
@@ -38,7 +38,9 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
     # Argument to a Lambda layer which will slice our large batches
     # along the batch dimension and return a given slice.
     def get_slice(data, index, parts):
-        import tensorflow
+        # We need to re-import tensorflow here so that Keras
+        # can serialise the layer correctly.
+        import tensorflow  # pylint: disable=redefined-outer-name,reimported
         is_last_slice = (index == parts - 1)
 
         shape = K.shape(data)
@@ -54,10 +56,7 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
         start = stride * index
         return tensorflow.slice(data, start, size)
 
-    all_outputs = []
-    for i in range(len(model.outputs)):
-        all_outputs.append([])
-
+    all_outputs = [[] for _ in model.outputs]
     # Place a copy of the model on each GPU, each getting a slice of the batch.
     for gpu_index in range(gpu_count):
         with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):

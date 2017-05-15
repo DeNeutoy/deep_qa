@@ -1,5 +1,5 @@
-from overrides import overrides
 import logging
+from overrides import overrides
 
 from keras.models import Model, Sequential
 import keras.backend as K
