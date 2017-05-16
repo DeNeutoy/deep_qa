@@ -17,12 +17,12 @@ class TestMultiGpu(DeepQaTestCase):
         super(TestMultiGpu, self).setUp()
         self.write_true_false_model_files()
         self.args = Params({
-                    'embedding_dim': {'words': 4, 'characters': 2},
-                    'batch_size': 8,
-                    'num_gpus': 2,
-                    'save_models': True,
-                    'show_summary_with_masking_info': True,
-            })
+                'embedding_dim': {'words': 4, 'characters': 2},
+                'batch_size': 8,
+                'num_gpus': 2,
+                'save_models': True,
+                'show_summary_with_masking_info': True,
+        })
 
     def test_model_can_train_and_load(self):
         self.ensure_model_trains_and_loads(ClassificationModel, self.args)
@@ -37,7 +37,7 @@ class TestMultiGpu(DeepQaTestCase):
         add_op = tensorflow.add(variable, 1.0)
 
         assert scope_function(variable.op) == "/cpu:0"
-        assert scope_function(add_op.op) == "/gpu:0"
+        assert scope_function(add_op.op) == "/gpu:0"  # pylint: disable=no-member
 
     def test_variables_live_on_cpu(self):
 
@@ -66,10 +66,3 @@ class TestMultiGpu(DeepQaTestCase):
         single_gpu_variables = [x.name for x in single_gpu_model.model.trainable_weights]
 
         assert single_gpu_variables == multi_gpu_variables
-
-
-
-
-
-
-
