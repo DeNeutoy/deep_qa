@@ -190,4 +190,3 @@ def count_total_params(layers, layer_set=None):
         else:
             total_params += layer.count_params()
     return total_params
-
