@@ -607,7 +607,8 @@ class Trainer:
         the vocabulary of your model, you can save it here. The model config is saved by default.
         """
         if self.num_gpus > 1:
-            model_config = self.model.layers[-(self.num_gpus + 1)].to_json()
+            lambda_layers = len(self.model.outputs)
+            model_config = self.model.layers[-(lambda_layers + 1)].to_json()
         else:
             model_config = self.model.to_json()
         model_config_file = open("%s_config.json" % (self.model_prefix), "w")
