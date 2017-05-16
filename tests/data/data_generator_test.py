@@ -159,7 +159,7 @@ class FakeInstance:
     def get_padding_lengths(self):
         return {'a': self.a_length, 'b': self.b_length, 'c': self.c_length}
 
-    def pad(self, lengths):
+    def pad(self, lengths):  # pylint: disable=unused-argument
         # Re-assign lengths so that we can check that the
         # padding is applied to the original dataset.
         self.a_length = self.b_length
