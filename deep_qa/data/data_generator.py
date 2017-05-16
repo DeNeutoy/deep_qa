@@ -109,12 +109,12 @@ class DataGenerator:
         Main external API call: converts an ``IndexedDataset`` into a data generator suitable for
         use with Keras' ``fit_generator`` and related methods.
         """
-        unpadded_dataset = deepcopy(dataset)
         grouped_instances = self.__create_batches(dataset)
         self.last_num_batches = len(grouped_instances)
         def generator():
             while True:
                 if self.sort_every_epoch:
+                    unpadded_dataset = deepcopy(dataset)
                     groups = self.__create_batches(unpadded_dataset)
                 else:
                     groups = grouped_instances

@@ -103,26 +103,6 @@ class TestDataGenerator(DeepQaTestCase):
         second_epoch = [self.as_list(x[0]) for x in second_epoch_arrays]
         assert first_epoch != second_epoch
 
-    def test_padding_is_not_applied_on_padded_instances(self):
-        # Just check that padding lengths which are retrieved for the
-        # instances are the same before and after being put through
-        # the generator. If the dataset was not copied in the generator
-        # we would pad instances and then recalculate the lengths to
-        # pad based off of the padded instances - this checks that doesn't happen.
-        params = Params({
-                'padding_noise': 0.0,
-                'sort_every_epoch': True,
-                })
-        generator = DataGenerator(self.text_trainer, params)
-        # Initial padding lengths
-        dataset = IndexedDataset(self.instances)
-        initial_padding_lengths = [instance.get_padding_lengths() for instance in dataset.instances]
-        batches = generator.create_generator(dataset)
-        # Generate a bit.
-        _ = [next(batches) for _ in range(5)]
-        post_generator_padding_lengths = [instance.get_padding_lengths() for instance in dataset.instances]
-        assert post_generator_padding_lengths == initial_padding_lengths
-
     def test_maximum_batch_size_is_actually_a_maximum(self):
         params = Params({
                 'padding_noise': 0.0,
@@ -159,12 +139,8 @@ class FakeInstance:
     def get_padding_lengths(self):
         return {'a': self.a_length, 'b': self.b_length, 'c': self.c_length}
 
-    def pad(self, lengths):  # pylint: disable=unused-argument
-        # Re-assign lengths so that we can check that the
-        # padding is applied to the original dataset.
-        self.a_length = self.b_length
-        self.b_length = self.c_length
-        self.c_length = self.a_length
+    def pad(self, lengths):
+        pass
 
     def as_training_data(self):
         return numpy.asarray([self.index]), numpy.asarray([self.index])
