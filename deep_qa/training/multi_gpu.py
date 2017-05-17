@@ -78,7 +78,7 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
                     outputs = [outputs]
 
                 # Save all the outputs for merging back together later
-                for i in range(len(outputs)):
+                for i in range(len(outputs)):  # pylint: disable=consider-using-enumerate
                     all_outputs[i].append(outputs[i])
 
     # merge outputs on CPU.
