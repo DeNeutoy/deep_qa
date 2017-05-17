@@ -1,12 +1,12 @@
-from keras.layers import merge
+from keras.layers import concatenate
 from keras.layers.core import Lambda
 import keras.backend as K
 import tensorflow
+
 from .models import DeepQaModel
 
 
-def pin_variable_device_scope(device, parameter_device="/cpu:0"):
-
+def pin_variable_device_scope(device, variable_device="/cpu:0"):
     """
     Tensorflow device scopes can take functions which give a device
     for a given op in the graph. Here, we use the device that is
@@ -17,14 +17,13 @@ def pin_variable_device_scope(device, parameter_device="/cpu:0"):
     def _assign(graph_op):
         node_def = graph_op if isinstance(graph_op, tensorflow.NodeDef) else graph_op.node_def
         if node_def.op in ['Variable', 'VariableV2']:
-            return parameter_device
+            return variable_device
         else:
             return device
     return _assign
 
 
 def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
-
     """
     Parameters
     ----------
@@ -77,13 +76,13 @@ def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
                 if not isinstance(outputs, list):
                     outputs = [outputs]
 
-                # Save all the outputs for merging back together later
-                for i in range(len(outputs)):  # pylint: disable=consider-using-enumerate
-                    all_outputs[i].append(outputs[i])
+                # Save all the outputs for merging back together later.
+                for i, output in enumerate(outputs):
+                    all_outputs[i].append(output)
 
-    # merge outputs on CPU.
+    # Merge outputs on CPU.
     with tensorflow.device('/cpu:0'):
         merged = []
         for outputs in all_outputs:
-            merged.append(merge(outputs, mode='concat', concat_axis=0))
+            merged.append(concatenate(outputs, axis=0))
         return DeepQaModel(input=model.inputs, output=merged)

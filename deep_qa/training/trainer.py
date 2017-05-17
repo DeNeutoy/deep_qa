@@ -3,9 +3,9 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy
-import tensorflow
 from keras.models import model_from_json
-from keras.callbacks import LambdaCallback, TensorBoard, EarlyStopping, CallbackList, ModelCheckpoint
+from keras.callbacks import CallbackList, EarlyStopping, LambdaCallback, ModelCheckpoint, TensorBoard
+
 from ..training.callbacks import ReplicaModelCheckpoint
 from ..common.checks import ConfigurationError
 from ..common.params import Params
@@ -71,6 +71,13 @@ class Trainer:
         model_serialization_prefix parameter, or the code will crash.
     model_serialization_prefix: str, optional (default=None)
         Prefix for saving and loading model files.  Must be set if ``save_models`` is ``True``.
+    num_gpus: int, optional (default=1) Number of GPUs to use. In DeepQa we use Data Parallelism,
+        meaning that we create copies of the full model for each GPU, allowing the batch size of
+        your model to be scaled depending on the number of GPUs. Note that using multiple GPUs
+        effectively increases your batch size by the number of GPUs you have, meaning that other
+        code which depends on the batch size will be effected - for example, if you are using
+        dynamic padding, the batches will be larger and hence more padded, as the dataset is
+        chunked into fewer overall batches.
     batch_size: int, optional (default=32)
         Batch size to use when training.
     num_epochs: int, optional (default=20)
@@ -292,8 +299,7 @@ class Trainer:
         logger.info("Building the model")
         self.model = self._build_model()
         if self.num_gpus > 1:
-            with tensorflow.device("/cpu:0"):
-                self.model = make_parallel(self.model, self.num_gpus)
+            self.model = make_parallel(self.model, self.num_gpus)
 
         self.model.summary(show_masks=self.show_summary_with_masking)
         self.model.compile(self.__compile_kwargs())
@@ -607,14 +613,13 @@ class Trainer:
         the vocabulary of your model, you can save it here. The model config is saved by default.
         """
         if self.num_gpus > 1:
-            lambda_layers = len(self.model.outputs)
-            model_config = self.model.layers[-(lambda_layers + 1)].to_json()
+            num_lambda_layers = len(self.model.outputs)
+            model_config = self.model.layers[-(num_lambda_layers + 1)].to_json()
         else:
             model_config = self.model.to_json()
         model_config_file = open("%s_config.json" % (self.model_prefix), "w")
         print(model_config, file=model_config_file)
         model_config_file.close()
-
 
     def _uses_data_generators(self):  # pylint: disable=no-self-use
         """

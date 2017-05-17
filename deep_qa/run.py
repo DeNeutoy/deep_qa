@@ -85,13 +85,13 @@ def run_model(param_path: str, model_class=None):
         logging.getLogger().addHandler(handler)
         shutil.copyfile(param_path, log_dir + "_model_params.json")
 
-    num_thread = os.environ.get('OMP_NUM_THREADS')
+    num_threads = os.environ.get('OMP_NUM_THREADS')
     config = {
             "allow_soft_placement": True,
             "log_device_placement": params.pop("log_device_placement", False)
     }
-    if num_thread is not None:
-        config["intra_op_parallelism_threads"] = int(num_thread)
+    if num_threads is not None:
+        config["intra_op_parallelism_threads"] = int(num_threads)
     global_session = tensorflow.Session(config=tensorflow.ConfigProto(**config))
     K.set_session(global_session)
 
