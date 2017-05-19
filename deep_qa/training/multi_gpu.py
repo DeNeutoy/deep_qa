@@ -4,7 +4,7 @@ import keras.backend as K
 import tensorflow
 
 from .models import DeepQaModel
-
+from ..common.params import Params
 
 def pin_variable_device_scope(device, variable_device="/cpu:0"):
     """
@@ -21,6 +21,45 @@ def pin_variable_device_scope(device, variable_device="/cpu:0"):
         else:
             return device
     return _assign
+
+
+class MultiGpuModel(object):
+
+    def __init__(self, params: Params):
+
+        self.model = params.pop("model")
+        self.gpu_count = params.pop("gpu_count")
+
+
+    def build_model(self):
+
+        all_outputs = [[] for _ in self.model.outputs]
+
+        tower_gradients = []
+        all_models = []
+        # Place a copy of the model on each GPU, each getting a slice of the batch.
+        for gpu_index in range(self.gpu_count):
+            with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
+                with tensorflow.name_scope('tower_%d' % gpu_index):
+                    inputs = []
+                    # Slice each input into a piece for processing on this GPU.
+                    for model_input in self.model.inputs:
+                        # Get the shape of everything apart from the batch,
+                        # which will be split across the GPUs.
+                        output_shape = tuple(model_input.get_shape().as_list())[1:]
+                        slice_layer = Lambda(get_slice,
+                                             output_shape=output_shape,
+                                             arguments={'index': gpu_index, 'parts': self.gpu_count})
+                        slice_n = slice_layer(model_input)
+                        inputs.append(slice_n)
+
+                    outputs = self.model(inputs)
+                    if not isinstance(outputs, list):
+                        outputs = [outputs]
+
+                    # Save all the outputs for merging back together later.
+                    for i, output in enumerate(outputs):
+                        all_outputs[i].append(output)
 
 
 def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
