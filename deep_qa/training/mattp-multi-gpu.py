@@ -111,38 +111,8 @@ class MultiGPUModel(object):
                 grads, global_step=global_step)
 
             # create the training op
-            if self._use_moving_averages:
-                self.ema = tf.train.ExponentialMovingAverage(
-                    decay=self._use_moving_averages)
-                # get an op to update moving averages of trainable vars
-
-                # CAUTION!! This is an extremely subtle problem.
-                # the EMA in tensorflow RE-RUNS the variable initialization
-                # op!  This causes all kinds of havoc with the model, esp.
-                # for variables that were set to sensible initial values
-                # AFTER initialization (LIKE bias of LSTM).
-                # SO: we need to stash away values, create moving averages,
-                # then set them again.
-                trainable_vars = tf.trainable_variables()
-                init_vals = {
-                    v.name: (v, K.get_value(v)) for v in trainable_vars}
-                maintain_averages_op = self.ema.apply(trainable_vars)
-                with tf.control_dependencies([apply_grad_op]):
-                    train_op = tf.group(maintain_averages_op)
-                # now reset the initial values
-                for v_name, (v, val) in init_vals.items():
-                    K.set_value(v, val)
-                for ema_v in tf.global_variables():
-                    if 'ExponentialMovingAverage' not in ema_v.name:
-                        continue
-                    ema_v_name = ema_v.name
-                    v_name = ema_v_name.replace('/ExponentialMovingAverage', '')
-                    val = init_vals[v_name][1]
-                    K.set_value(ema_v, val)
-                del init_vals
-            else:
-                train_op = apply_grad_op
-                self.ema = None
+            train_op = apply_grad_op
+            self.ema = None
 
             # NOW SOME SUMMARIES  ----------------------
             train_summary = tf.summary.scalar(
@@ -160,7 +130,6 @@ class MultiGPUModel(object):
                                               for mm in models])
                     summary_ops.append(tf.summary.scalar(mname, mtensor))
                     merged_metrics.append(mtensor)
-
 
             # summary ops specified in builder
             summary_builder = self._builders['summary']

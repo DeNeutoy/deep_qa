@@ -1,10 +1,9 @@
-from keras.layers import concatenate
-from keras.layers.core import Lambda
-import keras.backend as K
 import tensorflow
-
-from .models import DeepQaModel
+import keras.backend as K
 from ..common.params import Params
+
+from .train_utils import _average_gradients
+
 
 def pin_variable_device_scope(device, variable_device="/cpu:0"):
     """
@@ -30,98 +29,53 @@ class MultiGpuModel(object):
         self.model = params.pop("model")
         self.gpu_count = params.pop("gpu_count")
 
-
     def build_model(self):
 
-        all_outputs = [[] for _ in self.model.outputs]
-
+        tower_models = []
         tower_gradients = []
-        all_models = []
+        global_step = tensorflow.train.get_or_create_global_step()
+        train_loss = tensorflow.get_variable('train_loss', [],
+            initializer=tensorflow.constant_initializer(0.0), trainable=False)
+
         # Place a copy of the model on each GPU, each getting a slice of the batch.
         for gpu_index in range(self.gpu_count):
             with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
                 with tensorflow.name_scope('tower_%d' % gpu_index):
-                    inputs = []
-                    # Slice each input into a piece for processing on this GPU.
-                    for model_input in self.model.inputs:
-                        # Get the shape of everything apart from the batch,
-                        # which will be split across the GPUs.
-                        output_shape = tuple(model_input.get_shape().as_list())[1:]
-                        slice_layer = Lambda(get_slice,
-                                             output_shape=output_shape,
-                                             arguments={'index': gpu_index, 'parts': self.gpu_count})
-                        slice_n = slice_layer(model_input)
-                        inputs.append(slice_n)
 
-                    outputs = self.model(inputs)
-                    if not isinstance(outputs, list):
-                        outputs = [outputs]
+                    # TODO: check we don't need to compile every time.
+                    loss = self.model.total_loss
+                    grads = self.model.optimiser.compute_gradients(loss)
+                    tower_gradients.append(grads)
+                    train_loss += loss
 
-                    # Save all the outputs for merging back together later.
-                    for i, output in enumerate(outputs):
-                        all_outputs[i].append(output)
+        grads = _average_gradients(tower_gradients)
+        train_operation = self.model.optimiser.apply_gradients(grads,
+                                                        self.model._collected_trainable_weights,
+                                                        global_step=global_step)
 
+        updates = self.model.updates + [train_operation]
+        inputs = self.model._feed_inputs + self.model._feed_targets + self.model._feed_sample_weights
 
-def make_parallel(model: DeepQaModel, gpu_count: int) -> DeepQaModel:
-    """
-    Parameters
-    ----------
-    model: An instance of a DeepQaModel.
-    gpu_count: The number of GPUs to duplicate the model across.
+        inputs = []
+        updates = []
+        for model in tower_models:
+            model_inputs = (model._feed_inputs + model._feed_targets +
+                            model._feed_sample_weights)
+            inputs.extend(model_inputs)
+            updates.extend(model.updates)
+        # Just check any one, as we just made copies of them.
+        if tower_models[0].uses_learning_phase and \
+                not isinstance(K.learning_phase(), int):
+            inputs += [K.learning_phase()]
 
-    Output:
-    - A new DeepQaModel, consisting of model_duplicates over
-        the number of available GPUs.
-    """
-    # Argument to a Lambda layer which will slice our large batches
-    # along the batch dimension and return a given slice.
-    def get_slice(data, index, parts):
-        # We need to re-import tensorflow here so that Keras
-        # can serialise the layer correctly.
-        import tensorflow  # pylint: disable=redefined-outer-name,reimported
-        is_last_slice = (index == parts - 1)
+        # Add the multi-gpu update operation
+        updates += [train_operation]
 
-        shape = K.shape(data)
-        batch_shape, feature_shape = shape[:1], shape[1:]
-        stride = K.concatenate([batch_shape // parts, feature_shape * 0], axis=0)
+        # Gets loss and metrics. Updates weights at each call.
 
-        if not is_last_slice:
-            size = K.concatenate([batch_shape // parts, feature_shape], axis=0)
-        else:
-            # For the last device we take everything.
-            # This deals with the case that big_batch_size % num_gpus != 0.
-            size = K.concatenate([[-1], feature_shape], axis=0)
-        start = stride * index
-        return tensorflow.slice(data, start, size)
+        self.model.train_function = K.Function(inputs, [train_loss] + self.model.metrics_tensors, updates=updates)
 
-    all_outputs = [[] for _ in model.outputs]
-    # Place a copy of the model on each GPU, each getting a slice of the batch.
-    for gpu_index in range(gpu_count):
-        with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
-            with tensorflow.name_scope('tower_%d' % gpu_index):
-                inputs = []
-                # Slice each input into a piece for processing on this GPU.
-                for model_input in model.inputs:
-                    # Get the shape of everything apart from the batch,
-                    # which will be split across the GPUs.
-                    output_shape = tuple(model_input.get_shape().as_list())[1:]
-                    slice_layer = Lambda(get_slice,
-                                         output_shape=output_shape,
-                                         arguments={'index': gpu_index, 'parts': gpu_count})
-                    slice_n = slice_layer(model_input)
-                    inputs.append(slice_n)
+    def fit_parallel(self, inputs, outputs):
 
-                outputs = model(inputs)
-                if not isinstance(outputs, list):
-                    outputs = [outputs]
-
-                # Save all the outputs for merging back together later.
-                for i, output in enumerate(outputs):
-                    all_outputs[i].append(output)
-
-    # Merge outputs on CPU.
-    with tensorflow.device('/cpu:0'):
-        merged = []
-        for outputs in all_outputs:
-            merged.append(concatenate(outputs, axis=0))
-        return DeepQaModel(input=model.inputs, output=merged)
+    # TODO: Eventually make single gpu models train like this.
+    def make_parallel_train_function(self):

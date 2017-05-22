@@ -64,9 +64,6 @@ class DeepQaModel(Model):
         super(DeepQaModel, self).compile(**params.as_dict())
         self.optimizer = optimizer
 
-
-    def _compute_loss(self, model_outputs):
-
     @overrides
     def _make_train_function(self):
         # pylint: disable=attribute-defined-outside-init
