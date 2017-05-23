@@ -3,6 +3,8 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy
+import tensorflow
+import keras.backend as K
 from keras.models import model_from_json
 from keras.callbacks import CallbackList, EarlyStopping, LambdaCallback, ModelCheckpoint
 
@@ -14,7 +16,7 @@ from ..data.instances.instance import Instance
 from ..layers.wrappers import OutputMask
 from .models import DeepQaModel
 from .optimizers import optimizer_from_params
-from .multi_gpu import make_parallel
+from .train_utils import pin_variable_device_scope, _average_gradients
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -398,6 +400,64 @@ class Trainer:
             scores = self.model.evaluate_generator(arrays, steps)
         for idx, metric in enumerate(self.model.metrics_names):
             print("{}: {}".format(metric, scores[idx]))
+
+    def compile_parallel_model(self):
+
+        tower_models = []
+        tower_gradients = []
+        global_step = tensorflow.train.get_or_create_global_step()
+        train_loss = tensorflow.get_variable('train_loss', [],
+                                             initializer=tensorflow.constant_initializer(0.0), trainable=False)
+
+        # Place a copy of the model on each GPU, each getting a slice of the batch.
+        for gpu_index in range(self.num_gpus):
+            with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
+                with tensorflow.name_scope('tower_%d' % gpu_index):
+                    # This is a new model object every time.
+                    model = self._build_model()
+                    model.compile(self.__compile_kwargs())
+                    loss = model.total_loss
+                    tower_models.append(model)
+                    # American Spelling? :(
+                    grads = self.optimizer.compute_gradients(loss)
+                    tower_gradients.append(grads)
+                    train_loss += loss
+
+        grads = _average_gradients(tower_gradients)
+        train_operation = self.optimizer.apply_gradients(grads, global_step=global_step)
+
+        updates = self.model.updates + [train_operation]
+        inputs = self.model._feed_inputs + self.model._feed_targets + self.model._feed_sample_weights
+
+        inputs = []
+        updates = []
+        for model in tower_models:
+            model_inputs = (model._feed_inputs + model._feed_targets +
+                            model._feed_sample_weights)
+            inputs.extend(model_inputs)
+            updates.extend(model.updates)
+        # Just check any one, as we just made copies of them.
+        if tower_models[0].uses_learning_phase and \
+                not isinstance(K.learning_phase(), int):
+            inputs += [K.learning_phase()]
+
+        # Add the multi-gpu update operation
+        updates += [train_operation]
+
+        # Gets loss and metrics. Updates weights at each call.
+
+        self.model.train_function = K.Function(inputs, [train_loss] + self.model.metrics_tensors, updates=updates)
+
+
+
+
+
+
+
+
+
+
+
 
     ##################
     # Abstract methods - you MUST override these

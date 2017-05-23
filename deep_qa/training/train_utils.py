@@ -1,5 +1,22 @@
 
-import tensorflow as tf
+import tensorflow
+
+
+def pin_variable_device_scope(device, variable_device="/cpu:0"):
+    """
+    Tensorflow device scopes can take functions which give a device
+    for a given op in the graph. Here, we use the device that is
+    passed to the scope *unless* the operation which is being created
+    in the graph is a Variable creation op; in this case, we place it
+    on the cpu.
+    """
+    def _assign(graph_op):
+        node_def = graph_op if isinstance(graph_op, tensorflow.NodeDef) else graph_op.node_def
+        if node_def.op in ['Variable', 'VariableV2']:
+            return variable_device
+        else:
+            return device
+    return _assign
 
 
 def _deduplicate_indexed_slices(values, indices):
@@ -13,10 +30,10 @@ def _deduplicate_indexed_slices(values, indices):
       de-duplicated version of `indices` and `summed_values` contains the sum of
       `values` slices associated with each unique index.
     """
-    unique_indices, new_index_positions = tf.unique(indices)
-    summed_values = tf.unsorted_segment_sum(
+    unique_indices, new_index_positions = tensorflow.unique(indices)
+    summed_values = tensorflow.unsorted_segment_sum(
         values, new_index_positions,
-        tf.shape(unique_indices)[0])
+        tensorflow.shape(unique_indices)[0])
     return (summed_values, unique_indices)
 
 
@@ -43,7 +60,7 @@ def _average_gradients(tower_grads):
         # grads = list of gradients for this tensor to average
 
         g0 = grads[0]
-        if isinstance(g0, tf.IndexedSlices):
+        if isinstance(g0, tensorflow.IndexedSlices):
             # If the gradient is type IndexedSlices then this is a sparse
             #   gradient with attributes indices and values.
             # To average, need to concat them individually then create
@@ -53,24 +70,24 @@ def _average_gradients(tower_grads):
             for g in grads:
                 indices.append(g.indices)
                 values.append(g.values)
-            all_indices = tf.concat(indices, 0)
-            avg_values = tf.concat(values, 0) / len(grads)
+            all_indices = tensorflow.concat(indices, 0)
+            avg_values = tensorflow.concat(values, 0) / len(grads)
             # deduplicate across indices
             av, ai = _deduplicate_indexed_slices(avg_values, all_indices)
-            grad = tf.IndexedSlices(av, ai, dense_shape=g0.dense_shape)
+            grad = tensorflow.IndexedSlices(av, ai, dense_shape=g0.dense_shape)
             average_grads.append((grad, v))
         else:
             # a normal tensor can just do a simple average
             grads_expanded = []
             for g in grads:
                 # Add 0 dimension to the gradients to represent the tower.
-                expanded_g = tf.expand_dims(g, 0)
+                expanded_g = tensorflow.expand_dims(g, 0)
                 # Append on a 'tower' dimension which we will average over
                 grads_expanded.append(expanded_g)
 
             # Average over the 'tower' dimension.
-            grad = tf.concat(grads_expanded, 0)
-            grad = tf.reduce_mean(grad, 0)
+            grad = tensorflow.concat(grads_expanded, 0)
+            grad = tensorflow.reduce_mean(grad, 0)
 
             average_grads.append((grad, v))
 
@@ -81,31 +98,31 @@ def _average_gradients(tower_grads):
 
 def _clip_by_global_norm_summary(t_list, clip_norm, norm_name, variables):
     '''
-    wrapper around tf.clip_by_global_norm that also does summary ops of norms
+    wrapper around tensorflow.clip_by_global_norm that also does summary ops of norms
     compute norms
     '''
     # 0 compute norms
     # use global_norm with one element to handle IndexedSlices vs dense
-    norms = [tf.global_norm([t]) for t in t_list]
+    norms = [tensorflow.global_norm([t]) for t in t_list]
 
     # summary ops before clipping
     summary_ops = []
     for ns, v in zip(norms, variables):
         name = 'norm_pre_clip/' + v.name
-        summary_ops.append(tf.summary.scalar(name, ns))
+        summary_ops.append(tensorflow.summary.scalar(name, ns))
 
     # clip
-    clipped_t_list, tf_norm = tf.clip_by_global_norm(t_list, clip_norm)
+    clipped_t_list, tensorflow_norm = tensorflow.clip_by_global_norm(t_list, clip_norm)
 
     # summary ops after clipping
-    norms_post = [tf.global_norm([t]) for t in clipped_t_list]
+    norms_post = [tensorflow.global_norm([t]) for t in clipped_t_list]
     for ns, v in zip(norms_post, variables):
         name = 'norm_post_clip/' + v.name
-        summary_ops.append(tf.summary.scalar(name, ns))
+        summary_ops.append(tensorflow.summary.scalar(name, ns))
 
-    summary_ops.append(tf.summary.scalar(norm_name, tf_norm))
+    summary_ops.append(tensorflow.summary.scalar(norm_name, tensorflow_norm))
 
-    return clipped_t_list, tf_norm, summary_ops
+    return clipped_t_list, tensorflow_norm, summary_ops
 
 
 def _clip_grads(grads, all_clip_norm_val, global_step):
@@ -114,7 +131,7 @@ def _clip_grads(grads, all_clip_norm_val, global_step):
         # grad_and_vars is a list of (g, v) pairs
         grad_tensors = [g for g, v in grad_and_vars]
         vv = [v for g, v in grad_and_vars]
-        scaled_val = val * tf.minimum((global_step + 1) / 100.0, 1.0)
+        scaled_val = val * tensorflow.minimum((global_step + 1) / 100.0, 1.0)
         clipped_tensors, g_norm, so = _clip_by_global_norm_summary(
             grad_tensors, scaled_val, name, vv)
 
@@ -162,7 +179,7 @@ def _scale_grads(grads, grad_scale_spec):
             if name_spec in vname:
                 print("SCALING {0} gradient by {1}".format(
                     vname, fac_spec))
-                if isinstance(g, tf.IndexedSlices):
+                if isinstance(g, tensorflow.IndexedSlices):
                     g.values = g.values * fac_spec
                 else:
                     g = g * fac_spec
