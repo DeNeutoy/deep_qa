@@ -403,8 +403,19 @@ class Trainer:
         for idx, metric in enumerate(self.model.metrics_names):
             print("{}: {}".format(metric, scores[idx]))
 
-    def compile_parallel_model(self):
+    def compile_parallel_model(self) -> DeepQaModel:
+        """
+        This method compiles a multi-gpu version of your model. This is done using data
+        parallelism, by making N copies of the model on the different GPU, all of which
+        share parameters. Gradients are updated synchronously, using the average gradient
+        from all of the outputs of the various models. This effectively allows you to scale
+        a model up to batch_sizes which cannot fit on a single GPU.
 
+        Returns
+        -------
+        The "primary" copy of the DeepQaModel, which holds the training function which
+        trains all of the copies of the model.
+        """
         tower_models = []
         tower_gradients = []
         global_step = tensorflow.train.get_or_create_global_step()
