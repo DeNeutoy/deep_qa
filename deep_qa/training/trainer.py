@@ -8,7 +8,6 @@ import keras.backend as K
 from keras.models import model_from_json
 from keras.callbacks import CallbackList, EarlyStopping, LambdaCallback, ModelCheckpoint
 
-from ..training.callbacks import ReplicaModelCheckpoint
 from ..common.checks import ConfigurationError
 from ..common.params import Params
 from ..data.dataset import Dataset, IndexedDataset
@@ -16,7 +15,8 @@ from ..data.instances.instance import Instance
 from ..layers.wrappers import OutputMask
 from .models import DeepQaModel
 from .optimizers import optimizer_from_params
-from .train_utils import pin_variable_device_scope, _average_gradients
+from .train_utils import pin_variable_device_scope, _average_gradients, slice_batch, create_batches
+from .step import Step
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -299,12 +299,13 @@ class Trainer:
 
         # Then we build the model and compile it.
         logger.info("Building the model")
-        self.model = self._build_model()
-        if self.num_gpus > 1:
-            self.model = make_parallel(self.model, self.num_gpus)
+        if self.num_gpus <= 1:
+            self.model = self._build_model()
+            self.model.compile(self.__compile_kwargs())
+        else:
+            self.model = self.compile_parallel_model()
 
         self.model.summary(show_masks=self.show_summary_with_masking)
-        self.model.compile(self.__compile_kwargs())
 
         if self.debug_params:
             # Get the list of layers whose outputs will be visualized as per the
@@ -340,16 +341,22 @@ class Trainer:
         # Add the user-specified arguments to fit.
         kwargs.update(self.fit_kwargs)
         # We now pass all the arguments to the model's fit function, which does all of the training.
-        if not self._uses_data_generators():
-            history = self.model.fit(self.training_arrays[0], self.training_arrays[1], **kwargs)
+
+        if self.num_gpus > 1:
+            history = self.fit_parallel(self.training_arrays)
+
         else:
-            # If the data was produced by a generator, we have a bit more work to do to get the
-            # arguments right.
-            kwargs.pop('batch_size')
-            kwargs['steps_per_epoch'] = self.train_steps_per_epoch
-            if self.validation_arrays is not None and self._uses_data_generators():
-                kwargs['validation_steps'] = self.validation_steps
-            history = self.model.fit_generator(self.training_arrays, **kwargs)
+
+            if not self._uses_data_generators():
+                history = self.model.fit(self.training_arrays[0], self.training_arrays[1], **kwargs)
+            else:
+                # If the data was produced by a generator, we have a bit more work to do to get the
+                # arguments right.
+                kwargs.pop('batch_size')
+                kwargs['steps_per_epoch'] = self.train_steps_per_epoch
+                if self.validation_arrays is not None and self._uses_data_generators():
+                    kwargs['validation_steps'] = self.validation_steps
+                history = self.model.fit_generator(self.training_arrays, **kwargs)
 
         # After finishing training, we save the best weights and
         # any auxillary files, such as the model config.
@@ -407,7 +414,8 @@ class Trainer:
         tower_gradients = []
         global_step = tensorflow.train.get_or_create_global_step()
         train_loss = tensorflow.get_variable('train_loss', [],
-                                             initializer=tensorflow.constant_initializer(0.0), trainable=False)
+                                             initializer=tensorflow.constant_initializer(0.0),
+                                             trainable=False)
 
         # Place a copy of the model on each GPU, each getting a slice of the batch.
         for gpu_index in range(self.num_gpus):
@@ -415,25 +423,38 @@ class Trainer:
                 with tensorflow.name_scope('tower_%d' % gpu_index):
                     # This is a new model object every time.
                     model = self._build_model()
+                    # We are using the optimizer directly here, so we don't clutter
+                    # the graph creation by not creating optimizers we don't use.
+                    compile_kwargs = self.__compile_kwargs()
+                    compile_kwargs['optimizer'] = None
                     model.compile(self.__compile_kwargs())
                     loss = model.total_loss
                     tower_models.append(model)
-                    # American Spelling? :(
                     grads = self.optimizer.compute_gradients(loss)
                     tower_gradients.append(grads)
                     train_loss += loss
 
+        # TODO(Mark) remove this.
+        self.models = tower_models
         grads = _average_gradients(tower_gradients)
         train_operation = self.optimizer.apply_gradients(grads, global_step=global_step)
+        train_summary = tensorflow.summary.scalar('train_loss', train_loss/self.num_gpus)
 
-        updates = self.model.updates + [train_operation]
-        inputs = self.model._feed_inputs + self.model._feed_targets + self.model._feed_sample_weights
+        summary_operations = [train_summary]
+        # any metrics that keras has collected
+        merged_metrics = []
+        if tower_models[0].metrics is not None:
+            # merge the metrics across GPUs
+            for i in range(len(tower_models[0].metrics)):
+                name = tower_models[0].metrics[0]
+                tensor = tensorflow.reduce_mean([mm.metrics_tensors[i] for mm in tower_models])
+                summary_operations.append(tensorflow.summary.scalar(name, tensor))
+                merged_metrics.append(tensor)
 
         inputs = []
         updates = []
         for model in tower_models:
-            model_inputs = (model._feed_inputs + model._feed_targets +
-                            model._feed_sample_weights)
+            model_inputs = (model._feed_inputs + model._feed_targets + model._feed_sample_weights)
             inputs.extend(model_inputs)
             updates.extend(model.updates)
         # Just check any one, as we just made copies of them.
@@ -441,22 +462,63 @@ class Trainer:
                 not isinstance(K.learning_phase(), int):
             inputs += [K.learning_phase()]
 
-        # Add the multi-gpu update operation
+        # TODO temporary, integrate properly with step.
+        file_writer = tensorflow.summary.FileWriter("./models/tensorboard")
+
+        # Add the multi-gpu update operation.
         updates += [train_operation]
-
         # Gets loss and metrics. Updates weights at each call.
+        primary_model = tower_models[0]
+        primary_model.train_function = Step(inputs,
+                                            [train_loss] + merged_metrics,
+                                            global_step,
+                                            summary_writer=file_writer,
+                                            summary_frequency=1,
+                                            updates=updates)
 
-        self.model.train_function = K.Function(inputs, [train_loss] + self.model.metrics_tensors, updates=updates)
+        return primary_model
 
+    def fit_parallel(self, train_data):
 
+        if not hasattr(self, "models"):
+            raise ConfigurationError("You cannot call fit_parallel before"
+                                     " calling compile_parallel_model.")
 
+        for epoch in range(self.num_epochs):
+            batched_training_data = create_batches(train_data[0], train_data[1], self.batch_size)
 
+            for batch_no, batch in enumerate(batched_training_data, start=1):
+                # slice the input in the batch for the feed_dict.
+                inputs = self.prepare_inputs(batch, train=True)
+                self.model.train_function(inputs)
 
+    def prepare_inputs(self, batch, train=True):
+        # slice X and y
+        inputs, labels = batch
+        inputs_sliced = slice_batch(inputs, self.num_gpus)
+        targets_sliced = slice_batch(labels, self.num_gpus)
+        batch_size = int(self.batch_size / self.num_gpus)
+        sample_weights = numpy.ones(batch_size, )
 
+        distributed_model_inputs = []
+        for k, model in enumerate(self.models):
+            for placeholder_index, name in enumerate(model._feed_input_names):
+                distributed_model_inputs.append(inputs_sliced[placeholder_index][k])
 
+            for output_index, name in enumerate(model.output_names):
+                distributed_model_inputs.append(targets_sliced[output_index][k])
+            # now the sample weights, one per output tensor
+            for _ in model.output_names:
+                distributed_model_inputs.append(sample_weights)
 
+        # finally learning phase
+        if self.model.uses_learning_phase:
+            if train:
+                distributed_model_inputs.append(1.)
+            else:
+                distributed_model_inputs.append(0.)
 
-
+        return distributed_model_inputs
 
 
     ##################
@@ -594,11 +656,9 @@ class Trainer:
         # Some witchcraft is happening here - we don't specify the epoch replacement variable
         # checkpointing string, because Keras does that within the callback if we specify it here.
         if self.save_models:
-
-            checkpoint_callback = ReplicaModelCheckpoint if self.num_gpus > 1 else ModelCheckpoint
-            checkpointing = checkpoint_callback(self.model_prefix + "_weights_epoch={epoch:d}.h5",
-                                                save_best_only=True, save_weights_only=True,
-                                                monitor=self.validation_metric)
+            checkpointing = ModelCheckpoint(self.model_prefix + "_weights_epoch={epoch:d}.h5",
+                                            save_best_only=True, save_weights_only=True,
+                                            monitor=self.validation_metric)
             callbacks.append(checkpointing)
 
         return CallbackList(callbacks)
@@ -667,11 +727,7 @@ class Trainer:
         Called after training. If you have some auxiliary object, such as an object storing
         the vocabulary of your model, you can save it here. The model config is saved by default.
         """
-        if self.num_gpus > 1:
-            num_lambda_layers = len(self.model.outputs)
-            model_config = self.model.layers[-(num_lambda_layers + 1)].to_json()
-        else:
-            model_config = self.model.to_json()
+        model_config = self.model.to_json()
         model_config_file = open("%s_config.json" % (self.model_prefix), "w")
         print(model_config, file=model_config_file)
         model_config_file.close()

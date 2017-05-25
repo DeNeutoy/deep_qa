@@ -4,7 +4,7 @@ from copy import deepcopy
 import keras.backend as K
 import tensorflow
 
-from deep_qa.training.multi_gpu import pin_variable_device_scope
+from deep_qa.training.train_utils import pin_variable_device_scope
 from deep_qa.common.params import Params
 from deep_qa.models.text_classification import ClassificationModel
 from ..common.test_case import DeepQaTestCase
@@ -45,7 +45,7 @@ class TestMultiGpu(DeepQaTestCase):
         for variable in trainable_variables:
             # This is an odd quirk of tensorflow - the devices are actually named
             # slightly differently from their scopes ... (i.e != "/cpu:0")
-            assert variable.device == "/device:CPU:0" or variable.device == ""
+            assert variable.device == "/cpu:0" or variable.device == ""
 
     def test_multi_gpu_shares_variables(self):
         multi_gpu_model = self.get_model(ClassificationModel, self.args)
@@ -59,6 +59,6 @@ class TestMultiGpu(DeepQaTestCase):
 
         K.clear_session()
         single_gpu_model.train()
-        single_gpu_variables = [x.name for x in single_gpu_model.model.trainable_weights]
+        single_gpu_variables = ["tower_0/" + x.name for x in single_gpu_model.model.trainable_weights]
 
         assert single_gpu_variables == multi_gpu_variables

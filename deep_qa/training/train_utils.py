@@ -1,6 +1,6 @@
 
 import tensorflow
-
+import numpy
 
 def pin_variable_device_scope(device, variable_device="/cpu:0"):
     """
@@ -154,7 +154,7 @@ def _clip_grads(grads, all_clip_norm_val, global_step):
     return ret, summary_ops
 
 
-def slice_batch(batch, n_gpus):
+def slice_batch_original(batch, n_gpus):
     # batch = either X or y with batch dimension batch_size * n_gpus
     #   slices keys in X and y to multiple GPU slices
     # return: {varname: [slice1, slice2, .., sliceN], ..}
@@ -167,6 +167,30 @@ def slice_batch(batch, n_gpus):
             v_slice.append(v[(k * bs):((k + 1) * bs), ...])
         ret[key] = v_slice
     return ret
+
+
+def create_batches(inputs, labels, batch_size):
+
+    return_array = []
+    for i in range(0, len(inputs[0]) - batch_size, batch_size):
+
+        return_array.append((([inputs[i][i*batch_size: (i+1) * batch_size] for i in range(len(inputs))],
+                             [labels[i*batch_size: (i+1) * batch_size] for i in range(len(labels))])))
+
+    return return_array
+
+
+def slice_batch(batch, num_gpus):
+
+    all_slices = []
+    for placeholder in batch:
+        # splice placeholder into batches split across the number of gpus specified.
+        batch_size = int(placeholder.shape[0] / num_gpus)
+        placeholder_slices = []
+        for i in range(num_gpus):
+            placeholder_slices.append(placeholder[(i * batch_size):((i + 1) * batch_size), ...])
+        all_slices.append(placeholder_slices)
+    return all_slices
 
 
 def _scale_grads(grads, grad_scale_spec):
