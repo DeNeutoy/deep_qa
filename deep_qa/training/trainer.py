@@ -457,8 +457,10 @@ class Trainer:
                 not isinstance(K.learning_phase(), int):
             inputs += [K.learning_phase()]
 
-        # TODO temporary, integrate properly with step.
-        file_writer = tensorflow.summary.FileWriter("./models/tensorboard")
+        if self.tensorboard_log is not None:
+            train_summary_writer = tensorflow.summary.FileWriter(os.path.join(self.tensorboard_log, "train"))
+        else:
+            train_summary_writer = None
 
         # Add the multi-gpu update operation.
         updates += [train_operation]
@@ -467,8 +469,8 @@ class Trainer:
         primary_model.train_function = Step(inputs,
                                             [train_loss] + merged_metrics,
                                             global_step,
-                                            summary_writer=file_writer,
-                                            summary_frequency=1,
+                                            summary_writer=train_summary_writer,
+                                            summary_frequency=self.tensorboard_frequency,
                                             updates=updates)
         # TODO(Mark): This is a bit hacky. Add to compile instead?
         primary_model.num_gpus = self.num_gpus
