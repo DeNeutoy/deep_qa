@@ -151,9 +151,9 @@ class DeepQaModel(Model):
                                          updates=self.state_updates)
 
     @overrides
-    def _fit_loop(self, step_function, ins, out_labels=None, batch_size=32,
+    def _fit_loop(self, f, ins, out_labels=None, batch_size=32,
                   epochs=100, verbose=1, callbacks=None,
-                  validation_function=None, val_ins=None, shuffle=True,
+                  val_f=None, val_ins=None, shuffle=True,
                   callback_metrics=None, initial_epoch=0):
         """
         Abstract fit function which preprocesses and batches
@@ -170,7 +170,7 @@ class DeepQaModel(Model):
 
         Parameters
         ----------
-            step_function: A Keras function returning a list of tensors.
+            f: A Keras function returning a list of tensors.
             ins: list of tensors to be fed to `step_function`.
             out_labels: list of strings, display names of
                 the outputs of `step_function`.
@@ -178,7 +178,7 @@ class DeepQaModel(Model):
             epochs: number of times to iterate over the data
             verbose: verbosity mode, 0, 1 or 2
             callbacks: list of callbacks to be called during training
-            validation_function: Keras function to call for validation
+            val_f: Keras function to call for validation
             val_ins: list of tensors to be fed to `val_f`
             shuffle: whether to shuffle the data at the beginning of each epoch
             callback_metrics: list of strings, the display names of the metrics
@@ -193,7 +193,7 @@ class DeepQaModel(Model):
         A Keras `History` object.
         """
         do_validation = False
-        if validation_function and val_ins:
+        if val_f and val_ins:
             do_validation = True
             if verbose:
                 print('Train on %d samples, validate on %d samples' %
@@ -283,7 +283,7 @@ class DeepQaModel(Model):
                 batch_logs['batch'] = batch_index
                 batch_logs['size'] = len(batch_ids)
                 callbacks.on_batch_begin(batch_index, batch_logs)
-                outs = step_function(ins_batch)
+                outs = f(ins_batch)
                 if not isinstance(outs, list):
                     outs = [outs]
                 for label, output in zip(out_labels, outs):
@@ -302,7 +302,7 @@ class DeepQaModel(Model):
                         else:
                             val_batch_size = batch_size
 
-                        val_outs = self._test_loop(validation_function, val_ins,
+                        val_outs = self._test_loop(val_f, val_ins,
                                                    batch_size=val_batch_size,
                                                    verbose=0)
                         if not isinstance(val_outs, list):
