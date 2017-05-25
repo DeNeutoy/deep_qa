@@ -4,14 +4,14 @@ from overrides import overrides
 
 from keras.models import Model, Sequential
 from keras.engine.training import _batch_shuffle, _make_batches, _slice_arrays
-from .train_utils import slice_batch
-import keras.callbacks as cbks
+from keras.callbacks import History, CallbackList, ProgbarLogger, BaseLogger
 import keras.backend as K
 import tensorflow
 import numpy
 
 from .step import Step
 from ..common.params import Params, ConfigurationError
+from .train_utils import slice_batch
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -151,24 +151,34 @@ class DeepQaModel(Model):
                                          updates=self.state_updates)
 
     @overrides
-    def _fit_loop(self, f, ins, out_labels=None, batch_size=32,
+    def _fit_loop(self, step_function, ins, out_labels=None, batch_size=32,
                   epochs=100, verbose=1, callbacks=None,
-                  val_f=None, val_ins=None, shuffle=True,
+                  validation_function=None, val_ins=None, shuffle=True,
                   callback_metrics=None, initial_epoch=0):
-        """Abstract fit function for `f(ins)`.
+        """
+        Abstract fit function which preprocesses and batches
+        data before training a model. We override this keras backend
+        function to support multi-gpu training via splitting a large
+        batch size across multiple gpus. This function is broadly the
+        same as the Keras backend version aside from this - changed elements
+        have corresponding comments attached.
 
-        Assume that f returns a list, labeled by out_labels.
+        Note that this should not be called directly - it is used by calling
+        model.fit()
 
-        # Arguments
-            f: Keras function returning a list of tensors
-            ins: list of tensors to be fed to `f`
+        Assume that step_function returns a list, labeled by out_labels.
+
+        Parameters
+        ----------
+            step_function: A Keras function returning a list of tensors.
+            ins: list of tensors to be fed to `step_function`.
             out_labels: list of strings, display names of
-                the outputs of `f`
+                the outputs of `step_function`.
             batch_size: integer batch size
             epochs: number of times to iterate over the data
             verbose: verbosity mode, 0, 1 or 2
             callbacks: list of callbacks to be called during training
-            val_f: Keras function to call for validation
+            validation_function: Keras function to call for validation
             val_ins: list of tensors to be fed to `val_f`
             shuffle: whether to shuffle the data at the beginning of each epoch
             callback_metrics: list of strings, the display names of the metrics
@@ -178,11 +188,12 @@ class DeepQaModel(Model):
             initial_epoch: epoch at which to start training
                 (useful for resuming a previous training run)
 
-        # Returns
-            `History` object.
+        Returns
+        -------
+        A Keras `History` object.
         """
         do_validation = False
-        if val_f and val_ins:
+        if validation_function and val_ins:
             do_validation = True
             if verbose:
                 print('Train on %d samples, validate on %d samples' %
@@ -199,28 +210,28 @@ class DeepQaModel(Model):
             verbose = 2
         index_array = numpy.arange(num_train_samples)
 
-        self.history = cbks.History()
-        callbacks = [cbks.BaseLogger()] + (callbacks or []) + [self.history]
+        self.history = History()  # pylint: disable=attribute-defined-outside-init
+        callbacks = [BaseLogger()] + (callbacks or []) + [self.history]
         if verbose:
-            callbacks += [cbks.ProgbarLogger()]
-        callbacks = cbks.CallbackList(callbacks)
+            callbacks += [ProgbarLogger()]
+        callbacks = CallbackList(callbacks)
         out_labels = out_labels or []
 
         # it's possible to callback a different model than self
-        # (used by Sequential models)
+        # (used by Sequential models).
         if hasattr(self, 'callback_model') and self.callback_model:
             callback_model = self.callback_model
         else:
-            callback_model = self
+            callback_model = self  # pylint: disable=redefined-variable-type
 
         callbacks.set_model(callback_model)
         callbacks.set_params({
-            'batch_size': batch_size,
-            'epochs': epochs,
-            'samples': num_train_samples,
-            'verbose': verbose,
-            'do_validation': do_validation,
-            'metrics': callback_metrics or [],
+                'batch_size': batch_size,
+                'epochs': epochs,
+                'samples': num_train_samples,
+                'verbose': verbose,
+                'do_validation': do_validation,
+                'metrics': callback_metrics or [],
         })
         callbacks.on_train_begin()
         callback_model.stop_training = False
@@ -249,6 +260,10 @@ class DeepQaModel(Model):
                                     'If using HDF5 input data, '
                                     'pass shuffle="batch".')
 
+                # Here is the main difference between a single gpu model and one split
+                # across multiple gpus. In our multiple gpu model, all of the inputs
+                # are replicated num_gpus times, so we need to split our large batch
+                # into the corresponding sets of smaller batches for each model.
                 if hasattr(self, "num_gpus"):
                     if isinstance(ins_batch[-1], float):
                         split_batch = slice_batch(ins_batch[:-1], self.num_gpus)
@@ -268,30 +283,33 @@ class DeepQaModel(Model):
                 batch_logs['batch'] = batch_index
                 batch_logs['size'] = len(batch_ids)
                 callbacks.on_batch_begin(batch_index, batch_logs)
-                outs = f(ins_batch)
+                outs = step_function(ins_batch)
                 if not isinstance(outs, list):
                     outs = [outs]
-                for l, o in zip(out_labels, outs):
-                    batch_logs[l] = o
+                for label, output in zip(out_labels, outs):
+                    batch_logs[label] = output
 
                 callbacks.on_batch_end(batch_index, batch_logs)
 
                 if batch_index == len(batches) - 1:  # Last batch.
-
                     if do_validation:
+                        # If we are using multiple gpus, our batch size will be
+                        # scaled up accordingly. However, validation will run
+                        # on a single gpu, so we divide by the number of gpus
+                        # to avoid OOM errors.
                         if hasattr(self, "num_gpus"):
                             val_batch_size = int(batch_size/self.num_gpus)
                         else:
                             val_batch_size = batch_size
 
-                        val_outs = self._test_loop(val_f, val_ins,
+                        val_outs = self._test_loop(validation_function, val_ins,
                                                    batch_size=val_batch_size,
                                                    verbose=0)
                         if not isinstance(val_outs, list):
                             val_outs = [val_outs]
                         # Same labels assumed.
-                        for l, o in zip(out_labels, val_outs):
-                            epoch_logs['val_' + l] = o
+                        for label, output in zip(out_labels, val_outs):
+                            epoch_logs['val_' + label] = output
             callbacks.on_epoch_end(epoch, epoch_logs)
             if callback_model.stop_training:
                 break

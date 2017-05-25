@@ -15,7 +15,7 @@ from ..data.instances.instance import Instance
 from ..layers.wrappers import OutputMask
 from .models import DeepQaModel
 from .optimizers import optimizer_from_params
-from .train_utils import pin_variable_device_scope, _average_gradients, slice_batch, create_batches
+from .train_utils import pin_variable_device_scope, average_gradients
 from .step import Step
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -429,9 +429,7 @@ class Trainer:
                     tower_gradients.append(grads)
                     train_loss += loss
 
-        # TODO(Mark) remove this.
-        self.models = tower_models
-        grads = _average_gradients(tower_gradients)
+        grads = average_gradients(tower_gradients)
         train_operation = self.optimizer.apply_gradients(grads, global_step=global_step)
         train_summary = tensorflow.summary.scalar('train_loss', train_loss/self.num_gpus)
 
@@ -449,7 +447,9 @@ class Trainer:
         inputs = []
         updates = []
         for model in tower_models:
+            # pylint: disable=protected-access
             model_inputs = (model._feed_inputs + model._feed_targets + model._feed_sample_weights)
+            # pylint: enable=protected-access
             inputs.extend(model_inputs)
             updates.extend(model.updates)
         # Just check any one, as we just made copies of them.
@@ -470,52 +470,9 @@ class Trainer:
                                             summary_writer=file_writer,
                                             summary_frequency=1,
                                             updates=updates)
-        # TODO(Mark): This is a bit hacky.
+        # TODO(Mark): This is a bit hacky. Add to compile instead?
         primary_model.num_gpus = self.num_gpus
         return primary_model
-    #
-    # def fit_parallel(self, train_data):
-    #
-    #     if not hasattr(self, "models"):
-    #         raise ConfigurationError("You cannot call fit_parallel before"
-    #                                  " calling compile_parallel_model.")
-    #
-    #     for epoch in range(self.num_epochs):
-    #         batched_training_data = create_batches(train_data[0], train_data[1], self.batch_size)
-    #
-    #         for batch_no, batch in enumerate(batched_training_data, start=1):
-    #             # slice the input in the batch for the feed_dict.
-    #             inputs = self.prepare_inputs(batch, train=True)
-    #             self.model.train_function(inputs)
-    #
-    # def prepare_inputs(self, batch, train=True):
-    #     # slice X and y
-    #     inputs, labels = batch
-    #     inputs_sliced = slice_batch(inputs, self.num_gpus)
-    #     targets_sliced = slice_batch(labels, self.num_gpus)
-    #     batch_size = int(self.batch_size / self.num_gpus)
-    #     sample_weights = numpy.ones(batch_size, )
-    #
-    #     distributed_model_inputs = []
-    #     for k, model in enumerate(self.models):
-    #         for placeholder_index, name in enumerate(model._feed_input_names):
-    #             distributed_model_inputs.append(inputs_sliced[placeholder_index][k])
-    #
-    #         for output_index, name in enumerate(model.output_names):
-    #             distributed_model_inputs.append(targets_sliced[output_index][k])
-    #         # now the sample weights, one per output tensor
-    #         for _ in model.output_names:
-    #             distributed_model_inputs.append(sample_weights)
-    #
-    #     # finally learning phase
-    #     if self.model.uses_learning_phase:
-    #         if train:
-    #             distributed_model_inputs.append(1.)
-    #         else:
-    #             distributed_model_inputs.append(0.)
-    #
-    #     return distributed_model_inputs
-
 
     ##################
     # Abstract methods - you MUST override these
