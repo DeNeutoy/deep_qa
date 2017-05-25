@@ -342,21 +342,16 @@ class Trainer:
         kwargs.update(self.fit_kwargs)
         # We now pass all the arguments to the model's fit function, which does all of the training.
 
-        if self.num_gpus > 1:
-            history = self.fit_parallel(self.training_arrays)
-
+        if not self._uses_data_generators():
+            history = self.model.fit(self.training_arrays[0], self.training_arrays[1], **kwargs)
         else:
-
-            if not self._uses_data_generators():
-                history = self.model.fit(self.training_arrays[0], self.training_arrays[1], **kwargs)
-            else:
-                # If the data was produced by a generator, we have a bit more work to do to get the
-                # arguments right.
-                kwargs.pop('batch_size')
-                kwargs['steps_per_epoch'] = self.train_steps_per_epoch
-                if self.validation_arrays is not None and self._uses_data_generators():
-                    kwargs['validation_steps'] = self.validation_steps
-                history = self.model.fit_generator(self.training_arrays, **kwargs)
+            # If the data was produced by a generator, we have a bit more work to do to get the
+            # arguments right.
+            kwargs.pop('batch_size')
+            kwargs['steps_per_epoch'] = self.train_steps_per_epoch
+            if self.validation_arrays is not None and self._uses_data_generators():
+                kwargs['validation_steps'] = self.validation_steps
+            history = self.model.fit_generator(self.training_arrays, **kwargs)
 
         # After finishing training, we save the best weights and
         # any auxillary files, such as the model config.
@@ -475,50 +470,51 @@ class Trainer:
                                             summary_writer=file_writer,
                                             summary_frequency=1,
                                             updates=updates)
-
+        # TODO(Mark): This is a bit hacky.
+        primary_model.num_gpus = self.num_gpus
         return primary_model
-
-    def fit_parallel(self, train_data):
-
-        if not hasattr(self, "models"):
-            raise ConfigurationError("You cannot call fit_parallel before"
-                                     " calling compile_parallel_model.")
-
-        for epoch in range(self.num_epochs):
-            batched_training_data = create_batches(train_data[0], train_data[1], self.batch_size)
-
-            for batch_no, batch in enumerate(batched_training_data, start=1):
-                # slice the input in the batch for the feed_dict.
-                inputs = self.prepare_inputs(batch, train=True)
-                self.model.train_function(inputs)
-
-    def prepare_inputs(self, batch, train=True):
-        # slice X and y
-        inputs, labels = batch
-        inputs_sliced = slice_batch(inputs, self.num_gpus)
-        targets_sliced = slice_batch(labels, self.num_gpus)
-        batch_size = int(self.batch_size / self.num_gpus)
-        sample_weights = numpy.ones(batch_size, )
-
-        distributed_model_inputs = []
-        for k, model in enumerate(self.models):
-            for placeholder_index, name in enumerate(model._feed_input_names):
-                distributed_model_inputs.append(inputs_sliced[placeholder_index][k])
-
-            for output_index, name in enumerate(model.output_names):
-                distributed_model_inputs.append(targets_sliced[output_index][k])
-            # now the sample weights, one per output tensor
-            for _ in model.output_names:
-                distributed_model_inputs.append(sample_weights)
-
-        # finally learning phase
-        if self.model.uses_learning_phase:
-            if train:
-                distributed_model_inputs.append(1.)
-            else:
-                distributed_model_inputs.append(0.)
-
-        return distributed_model_inputs
+    #
+    # def fit_parallel(self, train_data):
+    #
+    #     if not hasattr(self, "models"):
+    #         raise ConfigurationError("You cannot call fit_parallel before"
+    #                                  " calling compile_parallel_model.")
+    #
+    #     for epoch in range(self.num_epochs):
+    #         batched_training_data = create_batches(train_data[0], train_data[1], self.batch_size)
+    #
+    #         for batch_no, batch in enumerate(batched_training_data, start=1):
+    #             # slice the input in the batch for the feed_dict.
+    #             inputs = self.prepare_inputs(batch, train=True)
+    #             self.model.train_function(inputs)
+    #
+    # def prepare_inputs(self, batch, train=True):
+    #     # slice X and y
+    #     inputs, labels = batch
+    #     inputs_sliced = slice_batch(inputs, self.num_gpus)
+    #     targets_sliced = slice_batch(labels, self.num_gpus)
+    #     batch_size = int(self.batch_size / self.num_gpus)
+    #     sample_weights = numpy.ones(batch_size, )
+    #
+    #     distributed_model_inputs = []
+    #     for k, model in enumerate(self.models):
+    #         for placeholder_index, name in enumerate(model._feed_input_names):
+    #             distributed_model_inputs.append(inputs_sliced[placeholder_index][k])
+    #
+    #         for output_index, name in enumerate(model.output_names):
+    #             distributed_model_inputs.append(targets_sliced[output_index][k])
+    #         # now the sample weights, one per output tensor
+    #         for _ in model.output_names:
+    #             distributed_model_inputs.append(sample_weights)
+    #
+    #     # finally learning phase
+    #     if self.model.uses_learning_phase:
+    #         if train:
+    #             distributed_model_inputs.append(1.)
+    #         else:
+    #             distributed_model_inputs.append(0.)
+    #
+    #     return distributed_model_inputs
 
 
     ##################

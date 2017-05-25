@@ -3,8 +3,12 @@ import os
 from overrides import overrides
 
 from keras.models import Model, Sequential
+from keras.engine.training import _batch_shuffle, _make_batches, _slice_arrays
+from .train_utils import slice_batch
+import keras.callbacks as cbks
 import keras.backend as K
 import tensorflow
+import numpy
 
 from .step import Step
 from ..common.params import Params, ConfigurationError
@@ -145,6 +149,154 @@ class DeepQaModel(Model):
                 self.global_step = tensorflow.train.get_or_create_global_step()
             self.predict_function = Step(inputs, self.outputs, self.global_step,
                                          updates=self.state_updates)
+
+    @overrides
+    def _fit_loop(self, f, ins, out_labels=None, batch_size=32,
+                  epochs=100, verbose=1, callbacks=None,
+                  val_f=None, val_ins=None, shuffle=True,
+                  callback_metrics=None, initial_epoch=0):
+        """Abstract fit function for `f(ins)`.
+
+        Assume that f returns a list, labeled by out_labels.
+
+        # Arguments
+            f: Keras function returning a list of tensors
+            ins: list of tensors to be fed to `f`
+            out_labels: list of strings, display names of
+                the outputs of `f`
+            batch_size: integer batch size
+            epochs: number of times to iterate over the data
+            verbose: verbosity mode, 0, 1 or 2
+            callbacks: list of callbacks to be called during training
+            val_f: Keras function to call for validation
+            val_ins: list of tensors to be fed to `val_f`
+            shuffle: whether to shuffle the data at the beginning of each epoch
+            callback_metrics: list of strings, the display names of the metrics
+                passed to the callbacks. They should be the
+                concatenation of list the display names of the outputs of
+                 `f` and the list of display names of the outputs of `f_val`.
+            initial_epoch: epoch at which to start training
+                (useful for resuming a previous training run)
+
+        # Returns
+            `History` object.
+        """
+        do_validation = False
+        if val_f and val_ins:
+            do_validation = True
+            if verbose:
+                print('Train on %d samples, validate on %d samples' %
+                      (ins[0].shape[0], val_ins[0].shape[0]))
+
+        if ins and hasattr(ins[0], 'shape'):
+            num_train_samples = ins[0].shape[0]
+        else:
+            # May happen if we are running `fit` without Numpy input data,
+            # i.e. if all inputs to the models are data tensors
+            # instead of placeholders.
+            # In that case we will run `fit` over a single batch.
+            num_train_samples = batch_size
+            verbose = 2
+        index_array = numpy.arange(num_train_samples)
+
+        self.history = cbks.History()
+        callbacks = [cbks.BaseLogger()] + (callbacks or []) + [self.history]
+        if verbose:
+            callbacks += [cbks.ProgbarLogger()]
+        callbacks = cbks.CallbackList(callbacks)
+        out_labels = out_labels or []
+
+        # it's possible to callback a different model than self
+        # (used by Sequential models)
+        if hasattr(self, 'callback_model') and self.callback_model:
+            callback_model = self.callback_model
+        else:
+            callback_model = self
+
+        callbacks.set_model(callback_model)
+        callbacks.set_params({
+            'batch_size': batch_size,
+            'epochs': epochs,
+            'samples': num_train_samples,
+            'verbose': verbose,
+            'do_validation': do_validation,
+            'metrics': callback_metrics or [],
+        })
+        callbacks.on_train_begin()
+        callback_model.stop_training = False
+        for cbk in callbacks:
+            cbk.validation_data = val_ins
+
+        for epoch in range(initial_epoch, epochs):
+            callbacks.on_epoch_begin(epoch)
+            if shuffle == 'batch':
+                index_array = _batch_shuffle(index_array, batch_size)
+            elif shuffle:
+                numpy.random.shuffle(index_array)
+
+            batches = _make_batches(num_train_samples, batch_size)
+            epoch_logs = {}
+            for batch_index, (batch_start, batch_end) in enumerate(batches):
+                batch_ids = index_array[batch_start:batch_end]
+                try:
+                    if isinstance(ins[-1], float):
+                        # Do not slice the training phase flag.
+                        ins_batch = _slice_arrays(ins[:-1], batch_ids) + [ins[-1]]
+                    else:
+                        ins_batch = _slice_arrays(ins, batch_ids)
+                except TypeError:
+                    raise TypeError('TypeError while preparing batch. '
+                                    'If using HDF5 input data, '
+                                    'pass shuffle="batch".')
+
+                if hasattr(self, "num_gpus"):
+                    if isinstance(ins_batch[-1], float):
+                        split_batch = slice_batch(ins_batch[:-1], self.num_gpus)
+                        model_inputs = []
+                        for model in zip(*split_batch):
+                            model_inputs.extend(model)
+                        # Add back in the training phase flag.
+                        model_inputs.append(ins_batch[-1])
+                    else:
+                        split_batch = slice_batch(ins_batch[-1], self.num_gpus)
+                        model_inputs = []
+                        for model in zip(*split_batch):
+                            model_inputs.extend(model)
+                    ins_batch = model_inputs
+
+                batch_logs = {}
+                batch_logs['batch'] = batch_index
+                batch_logs['size'] = len(batch_ids)
+                callbacks.on_batch_begin(batch_index, batch_logs)
+                outs = f(ins_batch)
+                if not isinstance(outs, list):
+                    outs = [outs]
+                for l, o in zip(out_labels, outs):
+                    batch_logs[l] = o
+
+                callbacks.on_batch_end(batch_index, batch_logs)
+
+                if batch_index == len(batches) - 1:  # Last batch.
+
+                    if do_validation:
+                        if hasattr(self, "num_gpus"):
+                            val_batch_size = int(batch_size/self.num_gpus)
+                        else:
+                            val_batch_size = batch_size
+
+                        val_outs = self._test_loop(val_f, val_ins,
+                                                   batch_size=val_batch_size,
+                                                   verbose=0)
+                        if not isinstance(val_outs, list):
+                            val_outs = [val_outs]
+                        # Same labels assumed.
+                        for l, o in zip(out_labels, val_outs):
+                            epoch_logs['val_' + l] = o
+            callbacks.on_epoch_end(epoch, epoch_logs)
+            if callback_model.stop_training:
+                break
+        callbacks.on_train_end()
+        return self.history
 
 
 def print_summary_with_masking(layers, relevant_nodes=None):
