@@ -265,18 +265,21 @@ class DeepQaModel(Model):
                 # are replicated num_gpus times, so we need to split our large batch
                 # into the corresponding sets of smaller batches for each model.
                 if hasattr(self, "num_gpus"):
+
+                    def multi_gpu_batch(variable_list):
+                        # Splits up and orders a list of inputs for a single
+                        # model into
+                        split_batch = slice_batch(variable_list, self.num_gpus)  # pylint: disable=no-member
+                        ordered_var_list = []
+                        for single_model_variables in zip(*split_batch):
+                            ordered_var_list.extend(single_model_variables)
+                        return ordered_var_list
+
                     if isinstance(ins_batch[-1], float):
-                        split_batch = slice_batch(ins_batch[:-1], self.num_gpus)  # pylint: disable=no-member
-                        model_inputs = []
-                        for model in zip(*split_batch):
-                            model_inputs.extend(model)
-                        # Add back in the training phase flag.
+                        model_inputs = multi_gpu_batch(ins_batch[:-1])
                         model_inputs.append(ins_batch[-1])
                     else:
-                        split_batch = slice_batch(ins_batch[-1], self.num_gpus)  # pylint: disable=no-member
-                        model_inputs = []
-                        for model in zip(*split_batch):
-                            model_inputs.extend(model)
+                        model_inputs = multi_gpu_batch(ins_batch)
                     ins_batch = model_inputs
 
                 batch_logs = {}
