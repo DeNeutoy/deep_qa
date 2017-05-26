@@ -266,14 +266,14 @@ class DeepQaModel(Model):
                 # into the corresponding sets of smaller batches for each model.
                 if hasattr(self, "num_gpus"):
                     if isinstance(ins_batch[-1], float):
-                        split_batch = slice_batch(ins_batch[:-1], self.num_gpus)
+                        split_batch = slice_batch(ins_batch[:-1], self.num_gpus)  # pylint: disable=no-member
                         model_inputs = []
                         for model in zip(*split_batch):
                             model_inputs.extend(model)
                         # Add back in the training phase flag.
                         model_inputs.append(ins_batch[-1])
                     else:
-                        split_batch = slice_batch(ins_batch[-1], self.num_gpus)
+                        split_batch = slice_batch(ins_batch[-1], self.num_gpus)  # pylint: disable=no-member
                         model_inputs = []
                         for model in zip(*split_batch):
                             model_inputs.extend(model)
@@ -298,7 +298,7 @@ class DeepQaModel(Model):
                         # on a single gpu, so we divide by the number of gpus
                         # to avoid OOM errors.
                         if hasattr(self, "num_gpus"):
-                            val_batch_size = int(batch_size/self.num_gpus)
+                            val_batch_size = int(batch_size/self.num_gpus)  # pylint: disable=no-member
                         else:
                             val_batch_size = batch_size
 
