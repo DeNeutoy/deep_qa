@@ -180,28 +180,27 @@ class DeepQaModel(Model):
 
         Parameters
         ----------
-            f: A Keras function returning a list of tensors.
-            ins: list of tensors to be fed to ``step_function``.
-            out_labels: list of strings, display names of
-                the outputs of ``step_function``.
-            batch_size: integer batch size
-            epochs: number of times to iterate over the data
-            verbose: verbosity mode, 0, 1 or 2
-            callbacks: list of callbacks to be called during training.
-            val_f: Keras function to call for validation.
-            val_ins: list of tensors to be fed to ``val_f``.
-            shuffle: whether to shuffle the data at the beginning of each epoch
-            callback_metrics: list of strings, the display names of the metrics
-                passed to the callbacks. They should be the
-                concatenation of list the display names of the outputs of
-                 ``f`` and the list of display names of the outputs of ``f_val``.
-            initial_epoch: epoch at which to start training
-                (useful for resuming a previous training run)
+        f: A Keras function returning a list of tensors.
+        ins: list of tensors to be fed to ``step_function``.
+        out_labels: list of strings, display names of the outputs of ``step_function``.
+        batch_size: integer batch size
+        epochs: number of times to iterate over the data
+        verbose: verbosity mode, 0, 1 or 2
+        callbacks: list of callbacks to be called during training.
+        val_f: Keras function to call for validation.
+        val_ins: list of tensors to be fed to ``val_f``.
+        shuffle: whether to shuffle the data at the beginning of each epoch
+        callback_metrics: list of strings, the display names of the metrics
+        passed to the callbacks. They should be the concatenation of list the display
+        names of the outputs of ``f`` and the list of display names of the outputs of ``f_val``.
+        initial_epoch: epoch at which to start training (useful for resuming a previous training run).
 
         Returns
         -------
         A Keras ``History`` object.
+
         """
+
         do_validation = False
         if val_f and val_ins:
             do_validation = True
