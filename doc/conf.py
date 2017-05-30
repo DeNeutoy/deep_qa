@@ -23,6 +23,9 @@ import sphinx_rtd_theme
 import os
 import sys
 import inspect
+
+from docutils.utils import get_source_line
+
 sys.path.insert(0, os.path.abspath('../'))
 
 
@@ -53,6 +56,10 @@ source_suffix = '.rst'
 
 # The master toctree document.
 master_doc = 'index'
+
+# Suppress warnings for images with external uri's so that we get the benefits of
+# the other checks using html-strict.
+supress_warnings = ["image.nonlocal_uri"]
 
 # General information about the project.
 project = 'deep_qa'
