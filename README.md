@@ -39,6 +39,18 @@ the details of your model based on the data that you're working with.
 code for these systems is typically 50 lines or less.
 
 
+This library has several main components:
+
+* A ``training`` module, which has a bunch of helper code for training Keras models of various
+  kinds.
+* A ``models`` module, containing implementations of actual Keras models grouped around various
+  prediction tasks.
+* A ``layers`` module, which contains code for custom Keras Layers that we have written.
+* A ``data`` module, containing code for reading in data from files and converting it into numpy
+  arrays suitable for use with Keras.
+* A ``common`` module, which has a few random things dealing with reading parameters and a few
+  other things.
+
 ## Working in a clone of DeepQA
 
 To train or evaluate a model using a clone of the DeepQA repository, the recommended entry point is
