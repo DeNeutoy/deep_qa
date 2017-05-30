@@ -10,6 +10,7 @@ Public methods
 
 .. automethod:: Trainer.can_train
 .. automethod:: Trainer.evaluate_model
+.. automethod:: Trainer.compile_parallel_model
 .. automethod:: Trainer.load_data_arrays
 .. automethod:: Trainer.load_model
 .. automethod:: Trainer.train
