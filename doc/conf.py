@@ -59,7 +59,7 @@ master_doc = 'index'
 
 # Suppress warnings for images with external uri's so that we get the benefits of
 # the other checks using html-strict.
-supress_warnings = ["image.nonlocal_uri"]
+suppress_warnings = ["image.nonlocal_uri"]
 
 # General information about the project.
 project = 'deep_qa'
