@@ -9,7 +9,7 @@ sudo -E apt-get -yq remove texlive-binaries --purge
 sudo -E apt-get -yq update
 sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes \
      install dvipng texlive-latex-base texlive-latex-extra \
-     texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended\
+     texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
      pandoc
 
 # deactivate circleci virtualenv and setup a miniconda env instead
