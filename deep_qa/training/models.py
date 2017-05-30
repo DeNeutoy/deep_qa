@@ -1,10 +1,11 @@
 import logging
 import os
+from typing import List
 from overrides import overrides
 
 from keras.models import Model, Sequential
 from keras.engine.training import _batch_shuffle, _make_batches, _slice_arrays
-from keras.callbacks import History, CallbackList, ProgbarLogger, BaseLogger
+from keras.callbacks import History, CallbackList, ProgbarLogger, BaseLogger, Callback
 import keras.backend as K
 import tensorflow
 import numpy
@@ -151,10 +152,19 @@ class DeepQaModel(Model):
                                          updates=self.state_updates)
 
     @overrides
-    def _fit_loop(self, f, ins, out_labels=None, batch_size=32,
-                  epochs=100, verbose=1, callbacks=None,
-                  val_f=None, val_ins=None, shuffle=True,
-                  callback_metrics=None, initial_epoch=0):
+    def _fit_loop(self,
+                  f: callable,
+                  ins: List[numpy.array],
+                  out_labels: List[str]=None,
+                  batch_size: int=32,
+                  epochs: int=100,
+                  verbose: int=1,
+                  callbacks: List[Callback]=None,
+                  val_f: callable=None,
+                  val_ins: List[numpy.array]=None,
+                  shuffle: bool=True,
+                  callback_metrics: List[str]=None,
+                  initial_epoch: int=0):
         """
         Abstract fit function which preprocesses and batches
         data before training a model. We override this keras backend
@@ -171,26 +181,26 @@ class DeepQaModel(Model):
         Parameters
         ----------
             f: A Keras function returning a list of tensors.
-            ins: list of tensors to be fed to `step_function`.
+            ins: list of tensors to be fed to ``step_function``.
             out_labels: list of strings, display names of
-                the outputs of `step_function`.
+                the outputs of ``step_function``.
             batch_size: integer batch size
             epochs: number of times to iterate over the data
             verbose: verbosity mode, 0, 1 or 2
-            callbacks: list of callbacks to be called during training
-            val_f: Keras function to call for validation
-            val_ins: list of tensors to be fed to `val_f`
+            callbacks: list of callbacks to be called during training.
+            val_f: Keras function to call for validation.
+            val_ins: list of tensors to be fed to ``val_f``.
             shuffle: whether to shuffle the data at the beginning of each epoch
             callback_metrics: list of strings, the display names of the metrics
                 passed to the callbacks. They should be the
                 concatenation of list the display names of the outputs of
-                 `f` and the list of display names of the outputs of `f_val`.
+                 ``f`` and the list of display names of the outputs of ``f_val``.
             initial_epoch: epoch at which to start training
                 (useful for resuming a previous training run)
 
         Returns
         -------
-        A Keras `History` object.
+        A Keras ``History`` object.
         """
         do_validation = False
         if val_f and val_ins:
