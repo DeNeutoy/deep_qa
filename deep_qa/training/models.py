@@ -174,33 +174,44 @@ class DeepQaModel(Model):
         have corresponding comments attached.
 
         Note that this should not be called directly - it is used by calling
-        model.fit()
+        model.fit().
 
         Assume that step_function returns a list, labeled by out_labels.
 
         Parameters
         ----------
-        f: A Keras function returning a list of tensors.
-        ins: list of tensors to be fed to ``step_function``.
-        out_labels: list of strings, display names of the outputs of ``step_function``.
-        batch_size: integer batch size
-        epochs: number of times to iterate over the data
-        verbose: verbosity mode, 0, 1 or 2
-        callbacks: list of callbacks to be called during training.
-        val_f: Keras function to call for validation.
-        val_ins: list of tensors to be fed to ``val_f``.
-        shuffle: whether to shuffle the data at the beginning of each epoch
-        callback_metrics: list of strings, the display names of the metrics
-        passed to the callbacks. They should be the concatenation of list the display
-        names of the outputs of ``f`` and the list of display names of the outputs of ``f_val``.
-        initial_epoch: epoch at which to start training (useful for resuming a previous training run).
+        f: A callable ``Step`` or a Keras ``Function``, required.
+            A DeepQA Step or Keras Function returning a list of tensors.
+        ins: List[numpy.array], required.
+            The list of tensors to be fed to ``step_function``.
+        out_labels: List[str], optional (default = None).
+            The display names of the outputs of ``step_function``.
+        batch_size: int, optional (default = 32).
+            The integer batch size.
+        epochs: int, optional (default = 100).
+            Number of times to iterate over the data.
+        verbose: int, optional, (default = 1)
+            Verbosity mode, 0, 1 or 2.
+        callbacks: List[Callback], optional (default = None).
+            A list of Keras callbacks to be called during training.
+        val_f: A callable ``Step`` or a Keras ``Function``, optional (default = None).
+            The Keras function to call for validation.
+        val_ins: List[numpy.array], optional (default)
+            A list of tensors to be fed to ``val_f``.
+        shuffle: bool, optional (default = True).
+            whether to shuffle the data at the beginning of each epoch
+        callback_metrics: List[str], optional, (default = None).
+            A list of strings, the display names of the validation metrics.
+            passed to the callbacks. They should be the concatenation of list the display
+            names of the outputs of ``f`` and the list of display names of the outputs of ``f_val``.
+        initial_epoch: int, optional (default = 0).
+            The epoch at which to start training (useful for resuming a previous training run).
 
         Returns
         -------
         A Keras ``History`` object.
 
         """
-
         do_validation = False
         if val_f and val_ins:
             do_validation = True
@@ -218,34 +229,10 @@ class DeepQaModel(Model):
             num_train_samples = batch_size
             verbose = 2
         index_array = numpy.arange(num_train_samples)
-
-        self.history = History()  # pylint: disable=attribute-defined-outside-init
-        callbacks = [BaseLogger()] + (callbacks or []) + [self.history]
-        if verbose:
-            callbacks += [ProgbarLogger()]
-        callbacks = CallbackList(callbacks)
         out_labels = out_labels or []
-
-        # it's possible to callback a different model than self
-        # (used by Sequential models).
-        if hasattr(self, 'callback_model') and self.callback_model:
-            callback_model = self.callback_model
-        else:
-            callback_model = self  # pylint: disable=redefined-variable-type
-
-        callbacks.set_model(callback_model)
-        callbacks.set_params({
-                'batch_size': batch_size,
-                'epochs': epochs,
-                'samples': num_train_samples,
-                'verbose': verbose,
-                'do_validation': do_validation,
-                'metrics': callback_metrics or [],
-        })
-        callbacks.on_train_begin()
-        callback_model.stop_training = False
-        for cbk in callbacks:
-            cbk.validation_data = val_ins
+        callbacks, callback_model = self._prepare_callbacks(callbacks, val_ins, epochs, batch_size,
+                                                            num_train_samples, callback_metrics,
+                                                            do_validation, verbose)
 
         for epoch in range(initial_epoch, epochs):
             callbacks.on_epoch_begin(epoch)
@@ -327,6 +314,49 @@ class DeepQaModel(Model):
                 break
         callbacks.on_train_end()
         return self.history
+
+    def _prepare_callbacks(self,
+                           callbacks: List[Callback],
+                           val_ins: List[numpy.array],
+                           epochs: int,
+                           batch_size: int,
+                           num_train_samples: int,
+                           callback_metrics: List[str],
+                           do_validation: bool,
+                           verbose: int):
+
+        """
+        Sets up Keras callbacks to perform various monitoring functions during training.
+        """
+
+        self.history = History()  # pylint: disable=attribute-defined-outside-init
+        callbacks = [BaseLogger()] + (callbacks or []) + [self.history]
+        if verbose:
+            callbacks += [ProgbarLogger()]
+        callbacks = CallbackList(callbacks)
+
+        # it's possible to callback a different model than self
+        # (used by Sequential models).
+        if hasattr(self, 'callback_model') and self.callback_model:
+            callback_model = self.callback_model
+        else:
+            callback_model = self  # pylint: disable=redefined-variable-type
+
+        callbacks.set_model(callback_model)
+        callbacks.set_params({
+                'batch_size': batch_size,
+                'epochs': epochs,
+                'samples': num_train_samples,
+                'verbose': verbose,
+                'do_validation': do_validation,
+                'metrics': callback_metrics or [],
+        })
+        callbacks.on_train_begin()
+        callback_model.stop_training = False
+        for cbk in callbacks:
+            cbk.validation_data = val_ins
+
+        return callbacks, callback_model
 
 
 def print_summary_with_masking(layers, relevant_nodes=None):
