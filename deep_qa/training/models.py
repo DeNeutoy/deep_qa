@@ -63,6 +63,7 @@ class DeepQaModel(Model):
 
         """
         optimizer = params.get('optimizer')
+        self.num_gpus = params.pop('num_gpus', 0)
         self.tensorboard_log = params.pop('tensorboard_log', None)
         self.tensorboard_frequency = params.pop('tensorboard_frequency', 0)
         self.gradient_clipping = params.pop("gradient_clipping", None).as_dict()
@@ -260,7 +261,7 @@ class DeepQaModel(Model):
                 # across multiple gpus. In our multiple gpu model, all of the inputs
                 # are replicated num_gpus times, so we need to split our large batch
                 # into the corresponding sets of smaller batches for each model.
-                if hasattr(self, "num_gpus"):
+                if self.num_gpus > 1:
 
                     def multi_gpu_batch(variable_list):
                         # Splits up and orders a list of inputs for a single
@@ -300,7 +301,7 @@ class DeepQaModel(Model):
                         # scaled up accordingly. However, validation will run
                         # on a single gpu, so we divide by the number of gpus
                         # to avoid OOM errors.
-                        if hasattr(self, "num_gpus"):
+                        if self.num_gpus > 1:
                             val_batch_size = int(batch_size/self.num_gpus)  # pylint: disable=no-member
                         else:
                             val_batch_size = batch_size

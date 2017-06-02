@@ -403,89 +403,7 @@ class Trainer:
         for idx, metric in enumerate(self.model.metrics_names):
             print("{}: {}".format(metric, scores[idx]))
 
-    def compile_parallel_model(self) -> DeepQaModel:
-        """
-        This method compiles a multi-gpu version of your model. This is done using data
-        parallelism, by making N copies of the model on the different GPU, all of which
-        share parameters. Gradients are updated synchronously, using the average gradient
-        from all of the outputs of the various models. This effectively allows you to scale
-        a model up to batch_sizes which cannot fit on a single GPU.
 
-        Returns
-        -------
-        The "primary" copy of the DeepQaModel, which holds the training function which
-        trains all of the copies of the model.
-        """
-        tower_models = []
-        tower_gradients = []
-        global_step = tensorflow.train.get_or_create_global_step()
-        train_loss = tensorflow.get_variable('train_loss', [],
-                                             initializer=tensorflow.constant_initializer(0.0),
-                                             trainable=False)
-
-        # Place a copy of the model on each GPU, each getting a slice of the batch.
-        for gpu_index in range(self.num_gpus):
-            with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
-                with tensorflow.name_scope('tower_%d' % gpu_index):
-                    # This is a new model object every time.
-                    model = self._build_model()
-                    # We are using the optimizer directly here, so we don't clutter
-                    # the graph creation by not creating optimizers we don't use.
-                    compile_kwargs = self.__compile_kwargs()
-                    compile_kwargs['optimizer'] = None
-                    model.compile(self.__compile_kwargs())
-                    loss = model.total_loss
-                    tower_models.append(model)
-                    grads = self.optimizer.compute_gradients(loss)
-                    tower_gradients.append(grads)
-                    train_loss += loss
-
-        grads = average_gradients(tower_gradients)
-        train_operation = self.optimizer.apply_gradients(grads, global_step=global_step)
-        train_summary = tensorflow.summary.scalar('train_loss', train_loss/self.num_gpus)
-
-        summary_operations = [train_summary]
-        # any metrics that keras has collected
-        merged_metrics = []
-        if tower_models[0].metrics is not None:
-            # merge the metrics across GPUs
-            for i in range(len(tower_models[0].metrics)):
-                name = tower_models[0].metrics[0]
-                tensor = tensorflow.reduce_mean([mm.metrics_tensors[i] for mm in tower_models])
-                summary_operations.append(tensorflow.summary.scalar(name, tensor))
-                merged_metrics.append(tensor)
-
-        inputs = []
-        updates = []
-        for model in tower_models:
-            # pylint: disable=protected-access
-            model_inputs = (model._feed_inputs + model._feed_targets + model._feed_sample_weights)
-            # pylint: enable=protected-access
-            inputs.extend(model_inputs)
-            updates.extend(model.updates)
-        # Just check any one, as we just made copies of them.
-        if tower_models[0].uses_learning_phase and \
-                not isinstance(K.learning_phase(), int):
-            inputs += [K.learning_phase()]
-
-        if self.tensorboard_log is not None:
-            train_summary_writer = tensorflow.summary.FileWriter(os.path.join(self.tensorboard_log, "train"))
-        else:
-            train_summary_writer = None
-
-        # Add the multi-gpu update operation.
-        updates += [train_operation]
-        # Gets loss and metrics. Updates weights at each call.
-        primary_model = tower_models[0]
-        primary_model.train_function = Step(inputs,
-                                            [train_loss] + merged_metrics,
-                                            global_step,
-                                            summary_writer=train_summary_writer,
-                                            summary_frequency=self.tensorboard_frequency,
-                                            updates=updates)
-        # TODO(Mark): This is a bit hacky. Add to compile instead?
-        primary_model.num_gpus = self.num_gpus
-        return primary_model
 
     ##################
     # Abstract methods - you MUST override these
@@ -596,6 +514,88 @@ class Trainer:
     ###################
     # Protected methods - you CAN override these, if you want
     ###################
+
+    def _compile_parallel_model(self) -> DeepQaModel:
+        """
+        This method compiles a multi-gpu version of your model. This is done using data
+        parallelism, by making N copies of the model on the different GPU, all of which
+        share parameters. Gradients are updated synchronously, using the average gradient
+        from all of the outputs of the various models. This effectively allows you to scale
+        a model up to batch_sizes which cannot fit on a single GPU.
+
+        Returns
+        -------
+        The "primary" copy of the DeepQaModel, which holds the training function which
+        trains all of the copies of the model.
+        """
+        tower_models = []
+        tower_gradients = []
+        global_step = tensorflow.train.get_or_create_global_step()
+        train_loss = tensorflow.get_variable('train_loss', [],
+                                             initializer=tensorflow.constant_initializer(0.0),
+                                             trainable=False)
+
+        # Place a copy of the model on each GPU, each getting a slice of the batch.
+        for gpu_index in range(self.num_gpus):
+            with tensorflow.device(pin_variable_device_scope('/gpu:%d' % gpu_index)):
+                with tensorflow.name_scope('tower_%d' % gpu_index):
+                    # This is a new model object every time.
+                    model = self._build_model()
+                    # We are using the optimizer directly here, so we don't clutter
+                    # the graph creation by not creating optimizers we don't use.
+                    compile_kwargs = self.__compile_kwargs()
+                    compile_kwargs['optimizer'] = None
+                    model.compile(self.__compile_kwargs())
+                    loss = model.total_loss
+                    tower_models.append(model)
+                    grads = self.optimizer.compute_gradients(loss)
+                    tower_gradients.append(grads)
+                    train_loss += loss
+
+        grads = average_gradients(tower_gradients)
+        train_operation = self.optimizer.apply_gradients(grads, global_step=global_step)
+        train_summary = tensorflow.summary.scalar('train_loss', train_loss/self.num_gpus)
+
+        summary_operations = [train_summary]
+        # any metrics that keras has collected
+        merged_metrics = []
+        if tower_models[0].metrics is not None:
+            # merge the metrics across GPUs
+            for i in range(len(tower_models[0].metrics)):
+                name = tower_models[0].metrics[0]
+                tensor = tensorflow.reduce_mean([mm.metrics_tensors[i] for mm in tower_models])
+                summary_operations.append(tensorflow.summary.scalar(name, tensor))
+                merged_metrics.append(tensor)
+
+        inputs = []
+        updates = []
+        for model in tower_models:
+            # pylint: disable=protected-access
+            model_inputs = (model._feed_inputs + model._feed_targets + model._feed_sample_weights)
+            # pylint: enable=protected-access
+            inputs.extend(model_inputs)
+            updates.extend(model.updates)
+        # Just check any one, as we just made copies of them.
+        if tower_models[0].uses_learning_phase and \
+                not isinstance(K.learning_phase(), int):
+            inputs += [K.learning_phase()]
+
+        if self.tensorboard_log is not None:
+            train_summary_writer = tensorflow.summary.FileWriter(os.path.join(self.tensorboard_log, "train"))
+        else:
+            train_summary_writer = None
+
+        # Add the multi-gpu update operation.
+        updates += [train_operation]
+        # Gets loss and metrics. Updates weights at each call.
+        primary_model = tower_models[0]
+        primary_model.train_function = Step(inputs,
+                                            [train_loss] + merged_metrics,
+                                            global_step,
+                                            summary_writer=train_summary_writer,
+                                            summary_frequency=self.tensorboard_frequency,
+                                            updates=updates)
+        return primary_model
 
     def _get_callbacks(self):
         """
@@ -802,4 +802,5 @@ class Trainer:
                 'loss': self.loss,
                 'optimizer': self.optimizer,
                 'metrics': self.metrics,
+                'num_gpus': self.num_gpus
                 })
