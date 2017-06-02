@@ -53,6 +53,15 @@ def _get_dense_gradient_average(gradients: List[tensorflow.Tensor]):
     """
     A normal tensor can just do a simple average. Here, we stack all the gradients into a
     tensor and then average over the dimension which they were stacked into.
+
+    Parameters
+    ----------
+    gradients: List[tensorflow.Tensor])
+        The list of gradients to average.
+
+    Returns
+    -------
+    An average gradient.
     """
     grads_expanded = []
     for grad in gradients:
@@ -76,6 +85,16 @@ def _get_sparse_gradient_average(gradients: List[tensorflow.IndexedSlices]):
     of neural network models, as for a given input, only some indices of the
     embedding are updated, so performing sparse updates using IndexedSlices
     is considerably more efficient.
+
+    Parameters
+    ----------
+    gradients: List[tensorflow.IndexedSlices])
+        The list of sparse gradients to average.
+
+    Returns
+    -------
+    An average gradient.
+
     """
     indices = []
     values = []
@@ -92,16 +111,33 @@ def _get_sparse_gradient_average(gradients: List[tensorflow.IndexedSlices]):
             avg_values, new_index_positions,
             tensorflow.shape(unique_indices)[0])
 
-    sparse_grad = tensorflow.IndexedSlices(values,
-                                           unique_indices,
-                                           dense_shape=first_actual_gradient.dense_shape)
-    return sparse_grad
+    mean_grad = tensorflow.IndexedSlices(values,
+                                         unique_indices,
+                                         dense_shape=first_actual_gradient.dense_shape)
+    return mean_grad
 
 
-def slice_batch(batch, num_gpus):
+def slice_batch(batch_inputs: List[tensorflow.Tensor], num_gpus: int):
+    """
+    Given a list of Tensor inputs to a model, split each input into a list of
+    tensors of length num_gpus, where the first dimension of each element is
+    equal to the original dimension divided by the number of gpus.
+
+    Parameters
+    ----------
+    batch_inputs: List[tensorflow.Tensor])
+        The list of model inputs to split up.
+    num_gpus: int
+        The number of gpus to split the inputs across.
+
+    Returns
+    -------
+    all_slices: List[List[tensorflow.Tensor]]
+        A list of lists of tensors split across their first dimension by num_gpus.
+    """
 
     all_slices = []
-    for placeholder in batch:
+    for placeholder in batch_inputs:
         # splice placeholder into batches split across the number of gpus specified.
         batch_size = int(placeholder.shape[0] / num_gpus)
         placeholder_slices = []
