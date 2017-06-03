@@ -523,6 +523,13 @@ class Trainer:
         from all of the outputs of the various models. This effectively allows you to scale
         a model up to batch_sizes which cannot fit on a single GPU.
 
+        This method returns a "primary" copy of the model, which has had it's training
+        function which is run by Keras overridden to be a training function which trains
+        all of the towers of the model. The other towers never have their training functions
+        initialised or used and are completely hidden from the user. The returned model
+        can be serialised in the same way as any other model and has no dependency on
+        multiple gpus being available when it is loaded.
+
         Returns
         -------
         The "primary" copy of the DeepQaModel, which holds the training function which
@@ -542,7 +549,7 @@ class Trainer:
                     # This is a new model object every time.
                     model = self._build_model()
                     # We are using the optimizer directly here, so we don't clutter
-                    # the graph creation by not creating optimizers we don't use.
+                    # the graph creation by creating optimizers we don't use.
                     compile_kwargs = self.__compile_kwargs()
                     compile_kwargs['optimizer'] = None
                     model.compile(self.__compile_kwargs())

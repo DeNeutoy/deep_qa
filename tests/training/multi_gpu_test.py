@@ -3,8 +3,10 @@ from copy import deepcopy
 
 import keras.backend as K
 import tensorflow
+import numpy
 
 from deep_qa.training.train_utils import pin_variable_device_scope
+from deep_qa.training.train_utils import _get_dense_gradient_average, _get_sparse_gradient_average
 from deep_qa.common.params import Params
 from deep_qa.models.text_classification import ClassificationModel
 from ..common.test_case import DeepQaTestCase
@@ -58,3 +60,10 @@ class TestMultiGpu(DeepQaTestCase):
         single_gpu_variables = ["tower_0/" + x.name for x in single_gpu_model.model.trainable_weights]
 
         assert single_gpu_variables == multi_gpu_variables
+
+    def test_gradient_average(self):
+        tensors = [tensorflow.ones([10, 20]) for _ in range(5)]
+        average = _get_dense_gradient_average(tensors)
+        session = tensorflow.Session()
+        numpy.testing.assert_array_equal(session.run(average), session.run(tensors[0]))
+
