@@ -303,7 +303,7 @@ class Trainer:
             self.model = self._build_model()
             self.model.compile(self.__compile_kwargs())
         else:
-            self.model = self.compile_parallel_model()
+            self.model = self._compile_parallel_model()
 
         self.model.summary(show_masks=self.show_summary_with_masking)
 
