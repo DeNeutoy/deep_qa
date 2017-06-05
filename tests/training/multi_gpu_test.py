@@ -5,7 +5,7 @@ import keras.backend as K
 import tensorflow
 import numpy
 
-from deep_qa.training.train_utils import pin_variable_device_scope
+from deep_qa.training.train_utils import pin_variable_device_scope, slice_batch
 from deep_qa.training.train_utils import _get_dense_gradient_average, _get_sparse_gradient_average
 from deep_qa.common.params import Params
 from deep_qa.models.text_classification import ClassificationModel
@@ -86,3 +86,21 @@ class TestMultiGpu(DeepQaTestCase):
         # correctly de-duplicated.
         expected_returned_tensor = numpy.concatenate([numpy.ones([1, 20]) * 4., numpy.ones([1, 20])], 0)
         numpy.testing.assert_array_almost_equal(session.run(average.values), expected_returned_tensor)
+
+    def test_slice_batch(self):
+
+        tensor1 = tensorflow.ones([32, 10, 4])
+        tensor2 = tensorflow.zeros([32, 12])
+        tensor3 = tensorflow.ones([32])
+        split_tensors = slice_batch([tensor1, tensor2, tensor3], num_gpus=4)
+
+        session = tensorflow.Session()
+
+        returned_arrays = session.run(split_tensors)
+        expected_tensor1 = numpy.ones([4, 8, 10, 4])
+        expected_tensor2 = numpy.zeros([4, 8, 12])
+        expected_tensor3 = numpy.ones([4, 8])
+
+        numpy.testing.assert_array_equal(returned_arrays[0], expected_tensor1)
+        numpy.testing.assert_array_equal(returned_arrays[1], expected_tensor2)
+        numpy.testing.assert_array_equal(returned_arrays[2], expected_tensor3)
