@@ -300,6 +300,12 @@ class Trainer:
             self.model = self._build_model()
             self.model.compile(self.__compile_kwargs())
         else:
+            if self._uses_data_generators():
+                # TODO(Mark): Remove this once we support dynamic padding + batching.
+                raise ConfigurationError("Multi-gpu training is currently only supported for"
+                                         "training without a DataGenerator, as it does not "
+                                         "support adaptive or dynamic batching. Remove these"
+                                         "from your configuration file to proceed.")
             self.model = compile_parallel_model(self._build_model, self.__compile_kwargs())
 
         self.model.summary(show_masks=self.show_summary_with_masking)
