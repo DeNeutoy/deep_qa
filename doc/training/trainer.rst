@@ -10,7 +10,6 @@ Public methods
 
 .. automethod:: Trainer.can_train
 .. automethod:: Trainer.evaluate_model
-.. automethod:: Trainer.compile_parallel_model
 .. automethod:: Trainer.load_data_arrays
 .. automethod:: Trainer.load_model
 .. automethod:: Trainer.train
@@ -34,6 +33,7 @@ adds some other abstract methods that you `might` have to worry about).
 Protected methods
 ~~~~~~~~~~~~~~~~~
 
+.. automethod:: Trainer._compile_parallel_model
 .. automethod:: Trainer._get_callbacks
 .. automethod:: Trainer._get_custom_objects
 .. automethod:: Trainer._instance_debug_output
