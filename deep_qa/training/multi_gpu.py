@@ -8,7 +8,7 @@ import keras.backend as K
 from .train_utils import pin_variable_device_scope, average_gradients
 from .models import DeepQaModel
 from .step import Step
-from ..common.params import Params
+from ..common.params import Params, ConfigurationError
 
 
 def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
@@ -44,6 +44,7 @@ def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
 
     optimizer = compile_arguments.get("optimizer")
     num_gpus = compile_arguments.get("num_gpus")
+    gradient_clipping = compile_arguments.get("gradient_clipping", None)
     tower_models = []
     tower_gradients = []
     global_step = tensorflow.train.get_or_create_global_step()
@@ -65,8 +66,22 @@ def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
                 tower_gradients.append(grads)
                 train_loss += loss
 
-    grads = average_gradients(tower_gradients)
-    train_operation = optimizer.apply_gradients(grads, global_step=global_step)
+    grads_and_variables = average_gradients(tower_gradients)
+
+    gradients, variables = list(zip(*grads_and_variables))
+    if gradient_clipping is not None:
+        # Don't pop from the gradient clipping dict here as
+        # if we call fit more than once we need it to still be there.
+        clip_type = gradient_clipping.get("type")
+        clip_value = gradient_clipping.get("value")
+        if clip_type == 'clip_by_norm':
+            gradients, _ = tensorflow.clip_by_global_norm(gradients, clip_value)
+        elif clip_type == 'clip_by_value':
+            gradients = [tensorflow.clip_by_value(x, -clip_value, clip_value) for x in gradients]
+        else:
+            raise ConfigurationError("{} is not a supported type of gradient clipping.".format(clip_type))
+
+    train_operation = optimizer.apply_gradients(zip(gradients, variables), global_step=global_step)
     train_summary = tensorflow.summary.scalar('train_loss', train_loss/ num_gpus)
 
     summary_operations = [train_summary]
