@@ -29,7 +29,7 @@ def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
 
     Note that in the multiple gpu case, the model_builder function will be called multiple times
     for the different GPUs. As such, you should be wary of this function having side
-     effects unrelated to building a computation graph.
+    effects unrelated to building a computation graph.
 
     Parameters
     ----------

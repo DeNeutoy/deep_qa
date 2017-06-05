@@ -33,7 +33,6 @@ adds some other abstract methods that you `might` have to worry about).
 Protected methods
 ~~~~~~~~~~~~~~~~~
 
-.. automethod:: Trainer._compile_parallel_model
 .. automethod:: Trainer._get_callbacks
 .. automethod:: Trainer._get_custom_objects
 .. automethod:: Trainer._instance_debug_output
