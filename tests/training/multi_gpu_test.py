@@ -67,3 +67,22 @@ class TestMultiGpu(DeepQaTestCase):
         session = tensorflow.Session()
         numpy.testing.assert_array_equal(session.run(average), session.run(tensors[0]))
 
+    def test_sparse_gradient_average(self):
+        tensors = [tensorflow.IndexedSlices(values=tensorflow.ones([5, 20]),
+                                            indices=tensorflow.constant([1, 2, 3, 4, 5])) for _ in range(5)]
+        average = _get_sparse_gradient_average(tensors)
+        session = tensorflow.Session()
+        # Unique indices, so the returned tensor should be a weighted average of the respective indices.
+        numpy.testing.assert_array_almost_equal(session.run(average.values), session.run(tensorflow.ones([5, 20])))
+
+        tensors = [tensorflow.IndexedSlices(values=tensorflow.ones([5, 20]),
+                                            indices=tensorflow.constant([1, 1, 1, 2, 1])) for _ in range(5)]
+        average = _get_sparse_gradient_average(tensors)
+
+        # Now we have duplicate indices, so the values for these indices in the 5 tensors we are averaging
+        # should be summed prior to being averaged. Here we have 5 tensors x 4 duplicate indices which
+        # all have value ones(1, 20), so the first return value should be an array of fours. The second
+        # returned value corresponds to the case above. This checks that the slices are being
+        # correctly de-duplicated.
+        expected_returned_tensor = numpy.concatenate([numpy.ones([1, 20]) * 4., numpy.ones([1, 20])], 0)
+        numpy.testing.assert_array_almost_equal(session.run(average.values), expected_returned_tensor)

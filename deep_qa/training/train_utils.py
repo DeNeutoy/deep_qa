@@ -105,6 +105,13 @@ def _get_sparse_gradient_average(gradients: List[tensorflow.IndexedSlices]):
     all_indices = tensorflow.concat(indices, 0)
     avg_values = tensorflow.concat(values, 0) / len(gradients)
 
+    # NOTE(Mark): tf.unique has no GPU implementation in tensorflow,
+    # so if you use a network which requires sparse gradients for an op which
+    # occurs on the GPU (such as tf.gather, tf.scatter), this will be slow.
+    # This is not a problem for the embedding lookup, because this already happens
+    # on the CPU. See this issue:
+    # https://github.com/tensorflow/tensorflow/issues/10270
+
     # Deduplicate across indices.
     unique_indices, new_index_positions = tensorflow.unique(all_indices)
     values = tensorflow.unsorted_segment_sum(
