@@ -6,7 +6,3 @@ data you're using or what the structure of your model is.  Really, a `Trainer` i
 interface to a Keras `Model`, we just call it something else to not create too much naming
 confusion, and because the `Trainer` class provides a lot of functionality around training the
 model that a Keras `Model` doesn't.
-
-We also deal with the notion of _pre-training_ in this module.  A `Pretrainer` is a `Trainer` that
-depends on another `Trainer`, building its model using pieces of the enclosed `Trainer`, so that
-training the `Pretrainer` updates the weights in the enclosed `Trainer` object.

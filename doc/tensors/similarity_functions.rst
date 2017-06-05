@@ -1,6 +1,8 @@
 Similarity Functions
 ====================
 
+.. include:: ../../SIMILARITY.rst
+
 .. automodule:: deep_qa.tensors.similarity_functions
 
 bilinear

@@ -1,6 +1,8 @@
 Attention
 =========
 
+.. include:: ../../ATTENTION.rst
+
 Attention
 ---------
 
