@@ -315,7 +315,7 @@ class DeepQaModel(Model):
                         for label, output in zip(out_labels, val_outs):
                             epoch_logs['val_' + label] = output
             callbacks.on_epoch_end(epoch, epoch_logs)
-            if callback_model.stop_training:
+            if callback_model.stop_training:  # pylint: disable=no-member
                 break
         callbacks.on_train_end()
         return self.history

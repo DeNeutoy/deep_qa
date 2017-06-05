@@ -40,11 +40,11 @@ def average_gradients(tower_gradients: List[List[Tuple[tensorflow.Tensor, tensor
         # Pick any one of the gradients to see if it is an IndexedSlice.
         first_actual_grad = gradients[0]
         if isinstance(first_actual_grad, tensorflow.IndexedSlices):
-            averaged_gradient = _get_sparse_gradient_average(gradients)
-            average_gradient_list.append((averaged_gradient, variable))
+            sparse_averaged_gradient = _get_sparse_gradient_average(gradients)
+            average_gradient_list.append((sparse_averaged_gradient, variable))
         else:
-            averaged_gradient = _get_dense_gradient_average(gradients)
-            average_gradient_list.append((averaged_gradient, variable))
+            dense_averaged_gradient = _get_dense_gradient_average(gradients)
+            average_gradient_list.append((dense_averaged_gradient, variable))
     assert len(average_gradient_list) == len(gradient_map)
     return average_gradient_list
 
@@ -114,11 +114,11 @@ def _get_sparse_gradient_average(gradients: List[tensorflow.IndexedSlices]):
 
     # Deduplicate across indices.
     unique_indices, new_index_positions = tensorflow.unique(all_indices)
-    values = tensorflow.unsorted_segment_sum(
+    deduplicated_values = tensorflow.unsorted_segment_sum(
             avg_values, new_index_positions,
             tensorflow.shape(unique_indices)[0])
 
-    mean_grad = tensorflow.IndexedSlices(values,
+    mean_grad = tensorflow.IndexedSlices(deduplicated_values,
                                          unique_indices,
                                          dense_shape=first_actual_gradient.dense_shape)
     return mean_grad
