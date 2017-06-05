@@ -20,7 +20,7 @@ def pin_variable_device_scope(device, variable_device="/cpu:0"):
     return _assign
 
 
-def average_gradients(tower_gradients: List[List[Tuple[List[tensorflow.Tensor], tensorflow.Tensor]]]):
+def average_gradients(tower_gradients: List[List[Tuple[tensorflow.Tensor, tensorflow.Tensor]]]):
     """
     Given a list of (gradient, variable) pairs from the result of
     a gradient calculation from multiple GPUs, calculate their
@@ -146,7 +146,7 @@ def slice_batch(batch_inputs: List[tensorflow.Tensor], num_gpus: int):
     all_slices = []
     for placeholder in batch_inputs:
         # splice placeholder into batches split across the number of gpus specified.
-        batch_size = int(placeholder.shape[0].value / num_gpus)
+        batch_size = int(int(placeholder.shape[0]) / num_gpus)
         placeholder_slices = []
         for i in range(num_gpus):
             placeholder_slices.append(placeholder[(i * batch_size):((i + 1) * batch_size), ...])
