@@ -263,24 +263,14 @@ class DeepQaModel(Model):
                 # into the corresponding sets of smaller batches for each model.
                 if self.num_gpus > 1:
 
-                    def multi_gpu_batch(variable_list):
-                        # Splits up and orders a list of inputs for a single
-                        # model into a single list of inputs for that model
-                        # in a towered fashion, with each input split across the batch size.
-                        split_batch = slice_batch(variable_list, self.num_gpus)  # pylint: disable=no-member
-                        ordered_var_list = []
-                        for single_model_variables in zip(*split_batch):
-                            ordered_var_list.extend(single_model_variables)
-                        return ordered_var_list
-
                     # The Keras learning phase is a global variable used across model towers.
                     # If it is present, we remove it before splitting up the inputs
                     # and add it back on afterwards.
                     if isinstance(ins_batch[-1], float):
-                        model_inputs = multi_gpu_batch(ins_batch[:-1])
+                        model_inputs = self._multi_gpu_batch(ins_batch[:-1])
                         model_inputs.append(ins_batch[-1])
                     else:
-                        model_inputs = multi_gpu_batch(ins_batch)
+                        model_inputs = self._multi_gpu_batch(ins_batch)
                     ins_batch = model_inputs
 
                 batch_logs = {}
@@ -319,6 +309,16 @@ class DeepQaModel(Model):
                 break
         callbacks.on_train_end()
         return self.history
+
+    def _multi_gpu_batch(self, variable_list):
+        # Splits up and orders a list of inputs for a single
+        # model into a single list of inputs for that model
+        # in a towered fashion, with each input split across the batch size.
+        split_batch = slice_batch(variable_list, self.num_gpus)  # pylint: disable=no-member
+        ordered_var_list = []
+        for single_model_variables in zip(*split_batch):
+            ordered_var_list.extend(single_model_variables)
+        return ordered_var_list
 
     def _prepare_callbacks(self,
                            callbacks: List[Callback],
