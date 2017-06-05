@@ -484,7 +484,9 @@ class Trainer:
     def _build_model(self) -> DeepQaModel:
         """Constructs and returns a DeepQaModel (which is a wrapper around a Keras Model) that will
         take the output of self._get_training_data as input, and produce as output a true/false
-        decision for each input.
+        decision for each input. Note that in the multiple gpu case, this function will be
+        called multiple times for the different GPUs. As such, you should be wary of this function
+        having side effects unrelated to building a computation graph.
 
         The returned model will be used to call model.fit(train_input, train_labels).
         """

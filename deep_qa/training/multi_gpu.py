@@ -27,6 +27,10 @@ def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
     can be serialised in the same way as any other model and has no dependency on
     multiple gpus being available when it is loaded.
 
+    Note that in the multiple gpu case, the model_builder function will be called multiple times
+    for the different GPUs. As such, you should be wary of this function having side
+     effects unrelated to building a computation graph.
+
     Parameters
     ----------
 
