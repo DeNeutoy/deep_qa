@@ -70,10 +70,8 @@ def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
 
     gradients, variables = list(zip(*grads_and_variables))
     if gradient_clipping is not None:
-        # Don't pop from the gradient clipping dict here as
-        # if we call fit more than once we need it to still be there.
-        clip_type = gradient_clipping.get("type")
-        clip_value = gradient_clipping.get("value")
+        clip_type = gradient_clipping.pop("type")
+        clip_value = gradient_clipping.pop("value")
         if clip_type == 'clip_by_norm':
             gradients, _ = tensorflow.clip_by_global_norm(gradients, clip_value)
         elif clip_type == 'clip_by_value':
