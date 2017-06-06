@@ -11,23 +11,23 @@ from .step import Step
 from ..common.params import Params, ConfigurationError
 
 
-def compile_parallel_model(model_builder: Callable[[any], DeepQaModel],
+def compile_parallel_model(model_builder: Callable[[], DeepQaModel],
                            compile_arguments: Params) -> DeepQaModel:
     """
     This function compiles a multi-gpu version of your model. This is done using data
-    parallelism, by making N copies of the model on the different GPU, all of which
+    parallelism, by making N copies of the model on the different GPUs, all of which
     share parameters. Gradients are updated synchronously, using the average gradient
     from all of the outputs of the various models. This effectively allows you to scale
     a model up to batch_sizes which cannot fit on a single GPU.
 
-    This method returns a "primary" copy of the model, which has had it's training
+    This method returns a "primary" copy of the model, which has had its training
     function which is run by Keras overridden to be a training function which trains
     all of the towers of the model. The other towers never have their training functions
     initialised or used and are completely hidden from the user. The returned model
     can be serialised in the same way as any other model and has no dependency on
     multiple gpus being available when it is loaded.
 
-    Note that in the multiple gpu case, the model_builder function will be called multiple times
+    Note that by calling this function, the model_builder function will be called multiple times
     for the different GPUs. As such, you should be wary of this function having side
     effects unrelated to building a computation graph.
 
