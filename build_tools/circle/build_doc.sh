@@ -2,9 +2,9 @@
 set -x
 set -e
 
-MAKE_TARGET=html
+MAKE_TARGET=html-strict
 
-#source activate testenv
+source activate testenv
 
 # Create .rst versions of the .md files we need for the docs.
 pandoc --from=markdown --to=rst --output=README.rst README.md
