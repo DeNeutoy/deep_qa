@@ -14,7 +14,6 @@ from numpy.testing import assert_allclose
 from deep_qa.common.checks import log_keras_version_info
 from deep_qa.common.params import Params
 from deep_qa.models.memory_networks.memory_network import MemoryNetwork
-from deep_qa.models.multiple_choice_qa.multiple_true_false_similarity import MultipleTrueFalseSimilarity
 
 
 class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
@@ -359,5 +358,4 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
     def is_model_with_background(self, model_class):
         # pylint: disable=multiple-statements
         if self.is_memory_network(model_class): return True
-        if model_class == MultipleTrueFalseSimilarity: return True
         return False
