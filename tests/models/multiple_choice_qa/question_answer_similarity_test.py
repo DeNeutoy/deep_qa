@@ -31,7 +31,7 @@ class TestQuestionAnswerSimilarity(DeepQaTestCase):
             # particular, we'll check two things: (1) that the final answer option softmax has
             # correctly padded out the extra option, and (2) that the attention weights on all of
             # the inputs are properly padded.  To see that this test is correct, you have to look
-            # at the actual file written in `write_multiple_true_false_memory_network_files()`.
+            # at the actual file written in `write_question_answer_files()`.
             print(output_dict)
             answer_scores = output_dict['answer_similarity_softmax']
             assert answer_scores[0][2] == 0

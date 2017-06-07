@@ -1,14 +1,6 @@
 Core Layers
 ===========
 
-AdaptiveRecurrence
-------------------
-
-.. automodule:: deep_qa.layers.adaptive_recurrence
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Additive
 --------
 
@@ -101,14 +93,6 @@ Overlap
 -------
 
 .. automodule:: deep_qa.layers.overlap
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-RecurrenceModes
----------------
-
-.. automodule:: deep_qa.layers.recurrence_modes
     :members:
     :undoc-members:
     :show-inheritance:
