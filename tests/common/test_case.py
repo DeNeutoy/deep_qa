@@ -13,7 +13,6 @@ from numpy.testing import assert_allclose
 
 from deep_qa.common.checks import log_keras_version_info
 from deep_qa.common.params import Params
-from deep_qa.models.memory_networks.memory_network import MemoryNetwork
 
 
 class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
@@ -47,15 +46,7 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         params['encoder'] = {"default": {'type': 'bow'}}
         params['num_epochs'] = 1
         params['validation_split'] = 0.0
-        if self.is_model_with_background(model_class):
-            # pylint: disable=no-member
-            params['train_files'].append(self.TRAIN_BACKGROUND)
-            params['validation_files'].append(self.VALIDATION_BACKGROUND)
-            # pylint: enable=no-member
-        if self.is_memory_network(model_class):
-            params['knowledge_selector'] = {'type': 'dot_product'}
-            params['memory_updater'] = {'type': 'sum'}
-            params['entailment_input_combiner'] = {'type': 'memory_only'}
+
         if additional_arguments:
             for key, value in additional_arguments.items():
                 params[key] = deepcopy(value)
@@ -348,14 +339,3 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         with open(self.PRETRAINED_VECTORS_FILE, 'rb') as f_in:
             with gzip.open(self.PRETRAINED_VECTORS_GZIP, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
-
-    @staticmethod
-    def is_memory_network(model_class):
-        if issubclass(model_class, MemoryNetwork):
-            return True
-        return False
-
-    def is_model_with_background(self, model_class):
-        # pylint: disable=multiple-statements
-        if self.is_memory_network(model_class): return True
-        return False
