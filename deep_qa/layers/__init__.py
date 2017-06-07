@@ -26,5 +26,3 @@ from .knowledge_selectors import ParameterizedKnowledgeSelector
 from .knowledge_selectors import ParameterizedHeuristicMatchingKnowledgeSelector
 from .memory_updaters import updaters, DenseConcatMemoryUpdater
 from .memory_updaters import DenseConcatNoQuestionMemoryUpdater, SumMemoryUpdater
-from .recurrence_modes import recurrence_modes, FixedRecurrence
-from .recurrence_modes import AdaptiveRecurrence
