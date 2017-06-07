@@ -189,77 +189,7 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
             train_file.write('5\tsentence11 word3 word2\t0\n')
             train_file.write('6\tsentence12\t0\n')
 
-    def write_memory_network_files(self):
-        with codecs.open(self.VALIDATION_FILE, 'w', 'utf-8') as validation_file:
-            validation_file.write('1\tq1a1\t0\n')
-            validation_file.write('2\tq1a2\t1\n')
-            validation_file.write('3\tq1a3\t0\n')
-            validation_file.write('4\tq1a4\t0\n')
-        with codecs.open(self.VALIDATION_BACKGROUND, 'w', 'utf-8') as validation_background:
-            validation_background.write('1\tvb1\tvb2\n')
-            validation_background.write('2\tvb3\tvb4\tvb5\n')
-            validation_background.write('3\tvb6\n')
-            validation_background.write('4\tvb7\tvb8\tvb9\n')
-        with codecs.open(self.TRAIN_FILE, 'w', 'utf-8') as train_file:
-            train_file.write('1\tsentence1\t0\n')
-            train_file.write('2\tsentence2\t1\n')
-            train_file.write('3\tsentence3\t0\n')
-            train_file.write('4\tsentence4\t1\n')
-            train_file.write('5\tsentence5\t0\n')
-            train_file.write('6\tsentence6\t0\n')
-        with codecs.open(self.TRAIN_BACKGROUND, 'w', 'utf-8') as train_background:
-            train_background.write('1\tsb1\tsb2\n')
-            train_background.write('2\tsb3\n')
-            train_background.write('3\tsb4\n')
-            train_background.write('4\tsb5\tsb6\n')
-            train_background.write('5\tsb7\tsb8\n')
-            train_background.write('6\tsb9\n')
-
-    def write_multiple_true_false_memory_network_files(self):
-        with codecs.open(self.VALIDATION_FILE, 'w', 'utf-8') as validation_file:
-            validation_file.write('1\tq1a1\t0\n')
-            validation_file.write('2\tq1a2\t1\n')
-            validation_file.write('3\tq1a3\t0\n')
-            validation_file.write('4\tq1a4\t0\n')
-        with codecs.open(self.VALIDATION_BACKGROUND, 'w', 'utf-8') as validation_background:
-            validation_background.write('1\tvb1\tvb2\n')
-            validation_background.write('2\tvb3\tvb4\tvb5\n')
-            validation_background.write('3\tvb6\n')
-            validation_background.write('4\tvb7\tvb8\tvb9\n')
-        with codecs.open(self.TRAIN_FILE, 'w', 'utf-8') as train_file:
-            train_file.write('1\tsentence1\t0\n')
-            train_file.write('2\tsentence2\t0\n')
-            train_file.write('3\tsentence3\t0\n')
-            train_file.write('4\tsentence4\t1\n')
-        with codecs.open(self.TRAIN_BACKGROUND, 'w', 'utf-8') as train_background:
-            train_background.write('1\tsb1\tsb2\n')
-            train_background.write('2\tsb3\n')
-            train_background.write('3\tsb4\n')
-            train_background.write('4\tsb5\tsb6\n')
-
-    def write_additional_multiple_true_false_memory_network_files(self):
-        with codecs.open(self.VALIDATION_FILE, 'w', 'utf-8') as validation_file:
-            validation_file.write('1\tq2a1\t0\n')
-            validation_file.write('2\tq2a2\t1\n')
-            validation_file.write('3\tq2a3\t0\n')
-            validation_file.write('4\tq2a4\t0\n')
-        with codecs.open(self.VALIDATION_BACKGROUND, 'w', 'utf-8') as validation_background:
-            validation_background.write('1\tvb10\tvb11\n')
-            validation_background.write('2\tvb12\tvb13\tvb14\n')
-            validation_background.write('3\tvb15\n')
-            validation_background.write('4\tvb16\tvb17\tvb18\n')
-        with codecs.open(self.TRAIN_FILE, 'w', 'utf-8') as train_file:
-            train_file.write('1\tsentence5 extrasentence1\t0\n')
-            train_file.write('2\tsentence6\t0\n')
-            train_file.write('3\tsentence7 extrasentence2\t0\n')
-            train_file.write('4\tsentence8\t1\n')
-        with codecs.open(self.TRAIN_BACKGROUND, 'w', 'utf-8') as train_background:
-            train_background.write('1\tsb7\tsb8\tsbextra\n')
-            train_background.write('2\tsb9\n')
-            train_background.write('3\tsb10\tsbextra\n')
-            train_background.write('4\tsb11\tsb12\n')
-
-    def write_question_answer_memory_network_files(self):
+    def write_question_answer_files(self):
         with codecs.open(self.VALIDATION_FILE, 'w', 'utf-8') as validation_file:
             validation_file.write('1\tquestion1\tanswer1###answer2\t0\n')
         with codecs.open(self.VALIDATION_BACKGROUND, 'w', 'utf-8') as validation_background:

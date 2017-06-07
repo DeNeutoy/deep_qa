@@ -8,13 +8,13 @@ from ...common.test_case import DeepQaTestCase
 
 class TestQuestionAnswerSimilarity(DeepQaTestCase):
     def test_train_does_not_crash(self):
-        self.write_question_answer_memory_network_files()
+        self.write_question_answer_files()
         model = self.get_model(QuestionAnswerSimilarity)
         model.train()
 
     @mock.patch.object(QuestionAnswerSimilarity, '_output_debug_info')
     def test_padding_works_correctly(self, _output_debug_info):
-        self.write_question_answer_memory_network_files()
+        self.write_question_answer_files()
         args = Params({
                 'num_hidden_layers': 1,
                 'hidden_layer_width': 2,
