@@ -28,7 +28,7 @@ PositionalEncoder
 AttentiveGRU
 ------------
 
-.. automodule:: deep_qa.layers.attentive_gru
+.. automodule:: deep_qa.encoders.attentive_gru
     :members:
     :undoc-members:
     :show-inheritance:
