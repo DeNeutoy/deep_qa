@@ -12,12 +12,14 @@ class AttentiveGRU(GRU):
     been encoded into a single sentence representation). The motivation behind this encoding is that
     a weighted average loses ordering information in the background knowledge - for instance, this is
     important in the BABI tasks.
+
     See Dynamic Memory Networks for more information: https://arxiv.org/pdf/1603.01417v1.pdf.
     This class extends the Keras Gated Recurrent Unit by implementing a method which substitutes
     the GRU update gate (normally a vector, z - it is noted below where it is normally computed) for a scalar
     attention weight (one per input, such as from the output of a softmax over the input vectors), which is
     pre-computed. As mentioned above, instead of using word embedding sequences as input to the GRU,
     we are using sentence encoding sequences.
+
     The implementation of this class is subtle - it is only very slightly different from a standard GRU.
     When it is initialised, the Keras backend will call the build method. It uses this to check that inputs being
     passed to this function are the correct size, so we allow this to be the actual input size as normal.
@@ -26,6 +28,7 @@ class AttentiveGRU(GRU):
     the attention mask. Therefore, we need all of the weights to have shape (*, encoding_dim),
     NOT (*, 1 + encoding_dim). All of the below methods which are overridden use some
     form of this dimension, so we correct them.
+
     """
 
     def __init__(self, output_dim, input_length, **kwargs):
@@ -50,6 +53,7 @@ class AttentiveGRU(GRU):
         there are commented out lines which contain code. If you were to uncomment these, remove the differences
         in the input size and replace the attention with the z gate at the output, you would have a standard
         GRU back again. We literally copied the Keras GRU code here, making some small modifications.
+
         """
         attention = inputs[:, 0]
         inputs = inputs[:, 1:]
@@ -107,12 +111,11 @@ class AttentiveGRU(GRU):
         This is used by Keras to verify things, but also to build the weights.
         The only differences from the Keras GRU (which we copied exactly
         other than the below) are:
-        - We generate weights with dimension input_dim[2] - 1, rather than
-          dimension input_dim[2].
-        - There are a few variables which are created in non-'gpu' modes which
-          are not required, and actually raise errors in Theano if you include them in
-          the trainable weights(as Theano will alert you if you try to compute a gradient
-          of a loss wrt a constant). These are commented out but left in for clarity below.
+        We generate weights with dimension input_dim[2] - 1, rather than
+        dimension input_dim[2].
+        There are a few variables which are created in non-'gpu' modes which
+        are not required. These are commented out but left in for clarity below.
+
         """
         new_input_shape = list(input_shape)
         new_input_shape[2] -= 1
@@ -126,6 +129,7 @@ class AttentiveGRU(GRU):
         we do the weight - input multiplications in the internals of the GRU as separate,
         smaller matrix multiplications and concatenate them after. Therefore, before this
         happens, we split off the attention and then add it back afterwards.
+
         """
         if self.implementation == 0:
 

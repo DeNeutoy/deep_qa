@@ -10,7 +10,7 @@ Additive
     :show-inheritance:
 
 AttentiveGRU
---------
+------------
 
 .. automodule:: deep_qa.layers.attentive_gru
     :members:
