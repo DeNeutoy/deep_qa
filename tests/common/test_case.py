@@ -36,7 +36,7 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         shutil.rmtree(self.TEST_DIR)
         K.clear_session()
 
-    def get_model_params(self, model_class, additional_arguments=None):
+    def get_model_params(self, additional_arguments=None):
         params = Params({})
         params['save_models'] = False
         params['model_serialization_prefix'] = self.TEST_DIR
@@ -53,7 +53,7 @@ class DeepQaTestCase(TestCase):  # pylint: disable=too-many-public-methods
         return params
 
     def get_model(self, model_class, additional_arguments=None):
-        params = self.get_model_params(model_class, additional_arguments)
+        params = self.get_model_params(additional_arguments)
         return model_class(params)
 
     def ensure_model_trains_and_loads(self, model_class, args: Params):
