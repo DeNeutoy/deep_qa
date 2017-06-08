@@ -9,6 +9,14 @@ Additive
     :undoc-members:
     :show-inheritance:
 
+AttentiveGRU
+--------
+
+.. automodule:: deep_qa.layers.attentive_gru
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 BiGRUIndexSelector
 ------------------
 
@@ -33,30 +41,6 @@ Highway
     :undoc-members:
     :show-inheritance:
 
-KnowledgeCombiners
-------------------
-
-.. automodule:: deep_qa.layers.knowledge_combiners
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-KnowledgeEncoders
------------------
-
-.. automodule:: deep_qa.layers.knowledge_encoders
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-KnowledgeSelectors
-------------------
-
-.. automodule:: deep_qa.layers.knowledge_selectors
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 L1Normalize
 -----------
 
@@ -65,16 +49,8 @@ L1Normalize
     :undoc-members:
     :show-inheritance:
 
-MemoryUpdaters
---------------
-
-.. automodule:: deep_qa.layers.memory_updaters
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 NoisyOr
-------------------
+-------
 
 .. automodule:: deep_qa.layers.noisy_or
     :members:
@@ -109,14 +85,6 @@ TimeDistributedEmbedding
 ------------------------
 
 .. automodule:: deep_qa.layers.time_distributed_embedding
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-TopKnowledgeSelector
---------------------
-
-.. automodule:: deep_qa.layers.top_knowledge_selector
     :members:
     :undoc-members:
     :show-inheritance:
