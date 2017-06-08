@@ -12,4 +12,3 @@ from .overlap import Overlap
 from .time_distributed_embedding import TimeDistributedEmbedding
 from .vector_matrix_merge import VectorMatrixMerge
 from .vector_matrix_split import VectorMatrixSplit
-from .attentive_gru import AttentiveGRU

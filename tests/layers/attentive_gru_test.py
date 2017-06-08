@@ -5,7 +5,7 @@ from keras.layers import Input, Embedding, merge
 from keras.models import Model
 import keras.backend as K
 
-from deep_qa.layers import AttentiveGRU
+from deep_qa.layers.encoders import AttentiveGru
 
 
 class TestAttentiveGRU:
@@ -18,7 +18,7 @@ class TestAttentiveGRU:
         attention = Input(shape=(sentence_length,), dtype='float32')
         # Embedding does not mask zeros
         embedding = Embedding(input_dim=vocabulary_size, output_dim=embedding_dim)
-        attentive_gru = AttentiveGRU(output_dim=embedding_dim,
+        attentive_gru = AttentiveGru(output_dim=embedding_dim,
                                      input_length=sentence_length,
                                      return_sequences=True,
                                      name='attentive_gru_test')
