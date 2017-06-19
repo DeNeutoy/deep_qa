@@ -1,8 +1,7 @@
 from collections import OrderedDict
-
-from .single_id_token_indexer import SingleIdTokenIndexer
+from .token_indexer import TokenIndexer
 from .token_characters_indexer import TokenCharactersIndexer
-from .token_indexer import TokenIndexer, TokenType
+from .single_id_token_indexer import SingleIdTokenIndexer
 
 # The first item added here will be used as the default in some cases.
 token_indexers = OrderedDict()  # pylint: disable=invalid-name

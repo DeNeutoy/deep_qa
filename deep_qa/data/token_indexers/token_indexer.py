@@ -1,6 +1,5 @@
 from typing import Dict, List, Union
 
-from . import token_indexers
 from ..vocabulary import Vocabulary
 from ...common import Params
 
@@ -75,7 +74,6 @@ class TokenIndexer:
         """
         raise NotImplementedError
 
-    @staticmethod
-    def from_params(params: Params):
-        choice = params.pop_choice('type', list(token_indexers.keys()), default_to_first_choice=True)
-        return token_indexers[choice].from_params(params)
+    @classmethod
+    def from_params(cls, params: Params):
+        raise NotImplementedError

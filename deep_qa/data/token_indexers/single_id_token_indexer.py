@@ -2,10 +2,10 @@ from typing import Dict, List
 
 from overrides import overrides
 
-from ...common.util import pad_sequence_to_length
-from ...common import Params
-from ..vocabulary import Vocabulary
-from .token_indexer import TokenIndexer, TokenType
+from deep_qa.common.util import pad_sequence_to_length
+from deep_qa.common import Params
+from deep_qa.data.vocabulary import Vocabulary
+from deep_qa.data.token_indexers.token_indexer import TokenIndexer, TokenType
 
 
 class SingleIdTokenIndexer(TokenIndexer):

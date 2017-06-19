@@ -1,6 +1,5 @@
 from typing import List
 
-from . import tokenizers
 from ...common import Params
 
 
@@ -27,7 +26,6 @@ class Tokenizer:
         """
         raise NotImplementedError
 
-    @staticmethod
-    def from_params(params: Params):
-        choice = params.pop_choice('type', list(tokenizers.keys()), default_to_first_choice=True)
-        return tokenizers[choice].from_params(params)
+    @classmethod
+    def from_params(cls, params: Params):
+        raise NotImplementedError

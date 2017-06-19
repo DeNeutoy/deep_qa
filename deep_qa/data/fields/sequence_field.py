@@ -1,4 +1,4 @@
-from . import Field
+from .field import Field
 
 
 class SequenceField(Field):

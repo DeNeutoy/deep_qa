@@ -3,7 +3,7 @@ from typing import Dict, List
 import numpy
 
 from .fields import Field
-from . import Vocabulary
+from .vocabulary import Vocabulary
 
 
 class Instance:

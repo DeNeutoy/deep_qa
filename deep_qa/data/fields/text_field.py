@@ -7,8 +7,8 @@ from typing import Dict, List
 from overrides import overrides
 import numpy
 
-from . import SequenceField
-from .. import Vocabulary
+from .sequence_field import SequenceField
+from ..vocabulary import Vocabulary
 from ..token_indexers import TokenIndexer
 
 

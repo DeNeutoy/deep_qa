@@ -3,11 +3,11 @@ import itertools
 
 from overrides import overrides
 
-from ...common.params import Params
-from ...common.util import pad_sequence_to_length
-from ..vocabulary import Vocabulary
-from ..tokenizers import CharacterTokenizer
-from .token_indexer import TokenIndexer, TokenType
+from deep_qa.common.params import Params
+from deep_qa.common.util import pad_sequence_to_length
+from deep_qa.data.vocabulary import Vocabulary
+from deep_qa.data.tokenizers import CharacterTokenizer
+from deep_qa.data.token_indexers.token_indexer import TokenIndexer, TokenType
 
 
 class TokenCharactersIndexer(TokenIndexer):

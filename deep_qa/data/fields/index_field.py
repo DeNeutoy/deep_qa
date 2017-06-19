@@ -3,7 +3,8 @@ from typing import Dict, List
 from overrides import overrides
 import numpy
 
-from . import Field, SequenceField
+from .field import Field
+from .sequence_field import  SequenceField
 
 
 class IndexField(Field):

@@ -3,8 +3,9 @@ from typing import Dict, List
 from overrides import overrides
 import numpy
 
-from . import Field, SequenceField
-from .. import Vocabulary
+from .field import Field
+from .sequence_field import SequenceField
+from ..vocabulary import Vocabulary
 from ...common.util import pad_sequence_to_length
 
 

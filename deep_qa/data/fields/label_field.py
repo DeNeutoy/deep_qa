@@ -3,8 +3,8 @@ from typing import Dict, List, Union
 from overrides import overrides
 import numpy
 
-from . import Field
-from .. import Vocabulary
+from .field import Field
+from ..vocabulary import Vocabulary
 
 class LabelField(Field):
     """

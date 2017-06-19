@@ -1,12 +1,13 @@
 import logging
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy
 import tqdm
 
 from ..common.util import add_noise_to_dict_values
-from . import Instance, Vocabulary
+from .instance import Instance
+from .vocabulary import Vocabulary
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -43,7 +44,7 @@ class Dataset:
         for instance in tqdm.tqdm(self.instances):
             instance.index_fields(vocab)
 
-    def sort_by_padding(self, sorting_keys: List[(str, str)], padding_noise: float=0.0):
+    def sort_by_padding(self, sorting_keys: List[Tuple[str, str]], padding_noise: float=0.0):
         """
         Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
         ``sorting_keys`` (in the order in which they are provided).  ``sorting_keys`` is a list of
