@@ -29,8 +29,9 @@ class _NamespaceDependentDefaultDict(defaultdict):
             elif namespace_str == key:
                 value = self._non_padded_function()
         if value is None:
-            value = self._padded_function
+            value = self._padded_function()
         dict.__setitem__(self, key, value)
+        return value
 
 
 class _TokenToIndexDefaultDict(_NamespaceDependentDefaultDict):
@@ -43,8 +44,8 @@ class _TokenToIndexDefaultDict(_NamespaceDependentDefaultDict):
 class _IndexToTokenDefaultDict(_NamespaceDependentDefaultDict):
     def __init__(self, non_padded_namespaces: List[str], padding_token: str, oov_token: str):
         super(_IndexToTokenDefaultDict, self).__init__(non_padded_namespaces,
-                                                       lambda: [padding_token, oov_token],
-                                                       lambda: [])
+                                                       lambda: {0: padding_token, 1: oov_token},
+                                                       lambda: {})
 
 
 class Vocabulary:
@@ -150,7 +151,8 @@ class Vocabulary:
                 self._index_to_token[namespace].append(token)
 
     @classmethod
-    def from_dataset(cls, dataset,
+    def from_dataset(cls,
+                     dataset,
                      min_count: int=1,
                      max_vocab_size: Union[int, Dict[str, int]]=None,
                      non_padded_namespaces: List[str]=None) -> 'Vocabulary':
@@ -162,10 +164,8 @@ class Vocabulary:
         logger.info("Fitting token dictionary")
         namespace_token_counts = defaultdict(lambda: defaultdict(int))
         for instance in tqdm.tqdm(dataset.instances):
-            namespace_dict = instance.words()
-            for namespace in namespace_dict:
-                for token in namespace_dict[namespace]:
-                    namespace_token_counts[namespace][token] += 1
+            instance.count_vocab_items(namespace_token_counts)
+
         return Vocabulary(counter=namespace_token_counts,
                           min_count=min_count,
                           max_vocab_size=max_vocab_size,
@@ -176,6 +176,7 @@ class Vocabulary:
         Adds ``token`` to the index, if it is not already present.  Either way, we return the index of
         the token.
         """
+        print("Namespace", namespace)
         if token not in self._token_to_index[namespace]:
             index = len(self._token_to_index[namespace])
             self._token_to_index[namespace][token] = index
@@ -185,7 +186,8 @@ class Vocabulary:
             return self._token_to_index[namespace][token]
 
     def tokens_in_namespace(self, namespace: str='tokens'):
-        return self._index_to_token[namespace]
+        # TODO(Mark): Ask MattG if this is what he wanted.
+        return list(self._index_to_token[namespace].values())
 
     def get_token_index(self, token: str, namespace: str='tokens'):
         if token in self._token_to_index[namespace]:
