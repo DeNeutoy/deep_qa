@@ -1,11 +1,10 @@
 import logging
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy
 import tqdm
 
-from ..common.util import add_noise_to_dict_values
 from .instance import Instance
 from .vocabulary import Vocabulary
 
@@ -43,27 +42,6 @@ class Dataset:
         """
         for instance in tqdm.tqdm(self.instances):
             instance.index_fields(vocab)
-
-    def sort_by_padding(self, sorting_keys: List[Tuple[str, str]], padding_noise: float=0.0):
-        """
-        Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
-        ``sorting_keys`` (in the order in which they are provided).  ``sorting_keys`` is a list of
-        ``(field_name, padding_key)`` tuples.
-        """
-        # TODO(matt): this code should probably go into the data generator.
-        instances_with_lengths = []
-        for instance in self.instances:
-            padding_lengths = instance.get_padding_lengths()
-            if padding_noise > 0.0:
-                noisy_lengths = {}
-                for field_name, field_lengths in padding_lengths:
-                    noisy_lengths[field_name] = add_noise_to_dict_values(field_lengths, padding_noise)
-                padding_lengths = noisy_lengths
-            instance_with_lengths = [padding_lengths[field_name][padding_key]
-                                     for (field_name, padding_key) in sorting_keys] + [instance]
-            instances_with_lengths.append(instance_with_lengths)
-        instances_with_lengths.sort(key=lambda x: x[:-1])
-        self.instances = [instance_with_lengths[-1] for instance_with_lengths in instances_with_lengths]
 
     def padding_lengths(self) -> Dict[str, Dict[str, int]]:
         """

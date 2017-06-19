@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Tuple
 import logging
 import random
 from copy import deepcopy
 
 from ..common.params import Params
-from ..common.util import group_by_count
+from ..common.util import group_by_count, add_noise_to_dict_values
 from . import IndexedDataset
 from .instances import IndexedInstance
 
@@ -128,9 +128,11 @@ class DataGenerator:
         return generator()
 
     def __create_batches(self, dataset: IndexedDataset, batch_size: int) -> List[List[IndexedInstance]]:
-        if self.dynamic_padding:
-            dataset.sort_by_padding(self.text_trainer.get_instance_sorting_keys(), self.padding_noise)
         instances = dataset.instances
+        if self.dynamic_padding:
+            instances = self.sort_by_padding(dataset,
+                                             self.text_trainer.get_instance_sorting_keys(),
+                                             self.padding_noise)
         if self.adaptive_batch_sizes:
             grouped_instances = self.__adaptive_grouping(instances)
         else:
@@ -173,3 +175,26 @@ class DataGenerator:
             logger.debug("Batch size: %d; padding: %s", len(current_batch), padding_lengths)
         batches.append(current_batch)
         return batches
+
+    @staticmethod
+    def sort_by_padding(dataset: IndexedDataset,
+                        sorting_keys: List[Tuple[str, str]],
+                        padding_noise: float=0.0) -> List[IndexedInstance]:
+        """
+        Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
+        ``sorting_keys`` (in the order in which they are provided).  ``sorting_keys`` is a list of
+        ``(field_name, padding_key)`` tuples.
+        """
+        instances_with_lengths = []
+        for instance in dataset.instances:
+            padding_lengths = instance.get_padding_lengths()
+            if padding_noise > 0.0:
+                noisy_lengths = {}
+                for field_name, field_lengths in padding_lengths:
+                    noisy_lengths[field_name] = add_noise_to_dict_values(field_lengths, padding_noise)
+                padding_lengths = noisy_lengths
+            instance_with_lengths = [padding_lengths[field_name][padding_key]
+                                     for (field_name, padding_key) in sorting_keys] + [instance]
+            instances_with_lengths.append(instance_with_lengths)
+        instances_with_lengths.sort(key=lambda x: x[:-1])
+        return [instance_with_lengths[-1] for instance_with_lengths in instances_with_lengths]
