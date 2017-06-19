@@ -130,9 +130,9 @@ class DataGenerator:
     def __create_batches(self, dataset: IndexedDataset, batch_size: int) -> List[List[IndexedInstance]]:
         instances = dataset.instances
         if self.dynamic_padding:
-            instances = self.sort_by_padding(dataset,
-                                             self.text_trainer.get_instance_sorting_keys(),
-                                             self.padding_noise)
+            instances = self.sort_dataset_by_padding(dataset,
+                                                     self.text_trainer.get_instance_sorting_keys(),
+                                                     self.padding_noise)
         if self.adaptive_batch_sizes:
             grouped_instances = self.__adaptive_grouping(instances)
         else:
@@ -177,9 +177,9 @@ class DataGenerator:
         return batches
 
     @staticmethod
-    def sort_by_padding(dataset: IndexedDataset,
-                        sorting_keys: List[Tuple[str, str]],
-                        padding_noise: float=0.0) -> List[IndexedInstance]:
+    def sort_dataset_by_padding(dataset: IndexedDataset,
+                                sorting_keys: List[Tuple[str, str]],
+                                padding_noise: float=0.0) -> List[IndexedInstance]:
         """
         Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
         ``sorting_keys`` (in the order in which they are provided).  ``sorting_keys`` is a list of
