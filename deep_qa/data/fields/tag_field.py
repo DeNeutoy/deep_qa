@@ -1,4 +1,5 @@
 from typing import Dict, List
+import logging
 
 from overrides import overrides
 import numpy
@@ -9,6 +10,8 @@ from ..vocabulary import Vocabulary
 from ...common.util import pad_sequence_to_length
 from ...common.checks import ConfigurationError
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
 
 class TagField(Field):
     """
@@ -16,14 +19,18 @@ class TagField(Field):
     Because it's a labeling of some other field, we take that field as input here, and we use it to
     determine our padding and other things.
     """
-    def __init__(self, tags: List[str], sequence_field: SequenceField, tag_namespace: str='tags'):
+    def __init__(self, tags: List[str], sequence_field: SequenceField, tag_namespace: str='*tags'):
         self._tags = tags
         self._sequence_field = sequence_field
         self._tag_namespace = tag_namespace
         self._indexed_tags = None
         self._num_tags = None
 
-        if len(tags) == sequence_field.sequence_length():
+        if not self._tag_namespace.startswith("*"):
+            logger.warning("The namespace of your tag ({}) does not begin with *, meaning the vocabulary "
+                           "namespace will contain UNK and PAD tokens by default.".format(self._tag_namespace))
+
+        if len(tags) != sequence_field.sequence_length():
             raise ConfigurationError("Tag length and sequence length "
                                      "don't match: %d and %d" % (len(tags), sequence_field.sequence_length()))
 

@@ -2,6 +2,7 @@
 from collections import defaultdict
 
 import pytest
+import numpy
 
 from deep_qa.data.vocabulary import Vocabulary
 from deep_qa.data.fields import TextField, TagField
@@ -19,39 +20,52 @@ class TestTextField(DeepQaTestCase):
         field.count_vocab_items(namespace_token_counts)
 
     def test_tag_length_mismatch_raises(self):
-
         with pytest.raises(ConfigurationError):
-
             text = TextField(["here", "are", "some", "words", "."], [])
             wrong_tags = ["B", "O", "O"]
             _ = TagField(wrong_tags, text)
 
+    def test_count_vocab_items_correctly_indexes_tags(self):
+        text = TextField(["here", "are", "some", "words", "."], [token_indexers["single id"]("words")])
+        tags = ["B", "I", "O", "O", "O"]
+        tag_field = TagField(tags, text, tag_namespace="tags")
+
+        counter = defaultdict(lambda: defaultdict(int))
+        tag_field.count_vocab_items(counter)
+
+        assert counter["tags"]["B"] == 1
+        assert counter["tags"]["I"] == 1
+        assert counter["tags"]["O"] == 3
+        assert set(counter.keys()) == {"tags"}
 
     def test_index_converts_field_correctly(self):
         vocab = Vocabulary()
-        sentence_index = vocab.add_token_to_namespace("sentence", namespace='words')
-        capital_a_index = vocab.add_token_to_namespace("A", namespace='words')
-        capital_a_char_index = vocab.add_token_to_namespace("A", namespace='characters')
-        s_index = vocab.add_token_to_namespace("s", namespace='characters')
-        e_index = vocab.add_token_to_namespace("e", namespace='characters')
-        n_index = vocab.add_token_to_namespace("n", namespace='characters')
-        t_index = vocab.add_token_to_namespace("t", namespace='characters')
-        c_index = vocab.add_token_to_namespace("c", namespace='characters')
+        b_index = vocab.add_token_to_namespace("B", namespace='*tags')
+        i_index = vocab.add_token_to_namespace("I", namespace='*tags')
+        o_index = vocab.add_token_to_namespace("O", namespace='*tags')
 
-        field = TextField(["A", "sentence"], [token_indexers["single id"](token_namespace="words")])
-        field.index(vocab)
-        assert field._indexed_tokens == [[capital_a_index, sentence_index]]
+        text = TextField(["here", "are", "some", "words", "."], [token_indexers["single id"]("words")])
+        tags = ["B", "I", "O", "O", "O"]
+        tag_field = TagField(tags, text, tag_namespace="*tags")
+        tag_field.index(vocab)
 
-        field1 = TextField(["A", "sentence"], [token_indexers["characters"](character_namespace="characters")])
-        field1.index(vocab)
-        assert field1._indexed_tokens == [[[capital_a_char_index], [s_index, e_index, n_index, t_index,
-                                           e_index, n_index, c_index, e_index]]]
-        field2 = TextField(["A", "sentence"],
-                           token_indexers=[token_indexers["single id"](token_namespace="words"),
-                                           token_indexers["characters"](character_namespace="characters")])
-        field2.index(vocab)
-        assert field2._indexed_tokens == [[capital_a_index, sentence_index],
-                                          [[capital_a_char_index],
-                                           [s_index, e_index, n_index, t_index,
-                                            e_index, n_index, c_index, e_index]]
-                                          ]
+        assert tag_field._indexed_tags == [b_index, i_index, o_index, o_index, o_index]
+        assert tag_field._num_tags == 3
+
+    def test_pad_produces_one_hot_targets(self):
+        vocab = Vocabulary()
+        vocab.add_token_to_namespace("B", namespace='*tags')
+        vocab.add_token_to_namespace("I", namespace='*tags')
+        vocab.add_token_to_namespace("O", namespace='*tags')
+
+        text = TextField(["here", "are", "some", "words", "."], [token_indexers["single id"]("words")])
+        tags = ["B", "I", "O", "O", "O"]
+        tag_field = TagField(tags, text, tag_namespace="*tags")
+        tag_field.index(vocab)
+        padding_lengths = tag_field.get_padding_lengths()
+        array = tag_field.pad(padding_lengths)
+        numpy.testing.assert_array_almost_equal(array, numpy.array([[1, 0, 0],
+                                                                    [0, 1, 0],
+                                                                    [0, 0, 1],
+                                                                    [0, 0, 1],
+                                                                    [0, 0, 1]]))
