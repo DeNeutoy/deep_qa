@@ -4,7 +4,7 @@ from overrides import overrides
 import numpy
 
 from .field import Field
-from .sequence_field import  SequenceField
+from .sequence_field import SequenceField
 
 
 class IndexField(Field):

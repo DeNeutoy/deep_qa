@@ -7,6 +7,7 @@ from .field import Field
 from .sequence_field import SequenceField
 from ..vocabulary import Vocabulary
 from ...common.util import pad_sequence_to_length
+from ...common.checks import ConfigurationError
 
 
 class TagField(Field):
@@ -21,8 +22,10 @@ class TagField(Field):
         self._tag_namespace = tag_namespace
         self._indexed_tags = None
         self._num_tags = None
-        assert len(tags) == sequence_field.sequence_length(), "Tag length and sequence length " +\
-                "don't match: %d and %d" % (len(tags), sequence_field.sequence_length())
+
+        if len(tags) == sequence_field.sequence_length():
+            raise ConfigurationError("Tag length and sequence length "
+                                     "don't match: %d and %d" % (len(tags), sequence_field.sequence_length()))
 
     @overrides
     def count_vocab_items(self, counter: Dict[str, Dict[str, int]]):
