@@ -11,7 +11,7 @@ from deep_qa.common.checks import ConfigurationError
 from deep_qa.testing.test_case import DeepQaTestCase
 
 
-class TestTextField(DeepQaTestCase):
+class TestTagField(DeepQaTestCase):
 
     def test_field_counts_vocab_items_correctly(self):
         field = TextField(["This", "is", "a", "text", "field", "."],
