@@ -10,6 +10,7 @@ import numpy
 from .sequence_field import SequenceField
 from ..vocabulary import Vocabulary
 from ..token_indexers import TokenIndexer
+from ...common.checks import ConfigurationError
 
 
 class TextField(SequenceField):
@@ -37,21 +38,33 @@ class TextField(SequenceField):
     def index(self, vocab: Vocabulary):
         token_arrays = []
         for indexer in self._token_indexers:
-            token_arrays.append([indexer.token_to_indices(token, vocab) for token in self._tokens])
+            arrays = [indexer.token_to_indices(token, vocab) for token in self._tokens]
+            token_arrays.append(arrays)
         self._indexed_tokens = token_arrays
 
     @overrides
     def get_padding_lengths(self) -> Dict[str, int]:
         lengths = []
+        if self._indexed_tokens is None:
+            raise ConfigurationError("You must call .index(vocabulary) on a "
+                                     "field before determining padding lengths.")
         for indexer, array in zip(self._token_indexers, self._indexed_tokens):
             indexer_lengths = {}
+
+            # This is a list of dicts, one for each token in the field.
             token_lengths = [indexer.get_padding_lengths(token) for token in array]
+            # Iterate over the keys in the first element of the list.
+            # This is fine as for a given indexer, all tokens will return the same keys,
+            # so we can just use the first one.
             for key in token_lengths[0].keys():
                 indexer_lengths[key] = max(x[key] if key in x else 0 for x in token_lengths)
             lengths.append(indexer_lengths)
         padding_lengths = {'num_tokens': len(self._indexed_tokens[0])}
-        for key in indexer_lengths[0].keys():
-            padding_lengths[key] = max(x[key] if key in x else 0 for x in indexer_lengths)
+        # Get all the namespaces which have been used for padding.
+        all_namespaces = set().union(*[d.keys() for d in lengths])
+        for namespace in all_namespaces:
+            padding_lengths[namespace] = max(x[key] if key in x else 0 for x in lengths)
+        return padding_lengths
 
     @overrides
     def sequence_length(self) -> int:
