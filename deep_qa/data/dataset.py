@@ -7,6 +7,7 @@ import tqdm
 
 from .instance import Instance
 from .vocabulary import Vocabulary
+from ..common.checks import ConfigurationError
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -22,8 +23,14 @@ class Dataset:
         A Dataset just takes a list of instances in its constructor.  It's important that all
         subclasses have an identical constructor to this (though possibly with different Instance
         types).  If you change the constructor, you also have to override all methods in this base
-        class that call the constructor, such as `merge()` and `truncate()`.
+        class that call the constructor, such as `truncate()`.
         """
+        all_instance_fields_and_types = [{k: v.__class__.__name__ for k, v in x.fields.items()}
+                                         for x in instances]
+        # Check all the field names and Field types are the same for every instance.
+        if not all([all_instance_fields_and_types[0] == x for x in all_instance_fields_and_types]):
+            raise ConfigurationError("You cannot construct a Dataset with non-homogeneous Instances.")
+
         self.instances = instances
 
     def truncate(self, max_instances: int):
@@ -43,7 +50,7 @@ class Dataset:
         for instance in tqdm.tqdm(self.instances):
             instance.index_fields(vocab)
 
-    def padding_lengths(self) -> Dict[str, Dict[str, int]]:
+    def get_padding_lengths(self) -> Dict[str, Dict[str, int]]:
         """
         Gets the maximum padding lengths from all ``Instances`` in this dataset.  Each ``Instance``
         has multiple ``Fields``, and each ``Field`` could have multiple things that need padding.
@@ -56,7 +63,7 @@ class Dataset:
         padding_lengths = defaultdict(dict)
         all_instance_lengths = [instance.get_padding_lengths() for instance in self.instances]
         if not all_instance_lengths:
-            return padding_lengths
+            return {**padding_lengths}
         all_field_lengths = defaultdict(list)
         for instance_lengths in all_instance_lengths:
             for field_name, instance_field_lengths in instance_lengths.items():
@@ -65,7 +72,7 @@ class Dataset:
             for padding_key in field_lengths[0].keys():
                 max_value = max(x[padding_key] if padding_key in x else 0 for x in field_lengths)
                 padding_lengths[field_name][padding_key] = max_value
-        return padding_lengths
+        return {**padding_lengths}
 
     def as_arrays(self,
                   padding_lengths: Dict[str, Dict[str, int]]=None,
@@ -110,14 +117,14 @@ class Dataset:
         if verbose:
             logger.info("Padding dataset of size %d to lengths %s", len(self.instances), str(padding_lengths))
             logger.info("Getting max lengths from instances")
-        instance_padding_lengths = self.padding_lengths()
+        instance_padding_lengths = self.get_padding_lengths()
         if verbose:
             logger.info("Instance max lengths: %s", str(instance_padding_lengths))
         lengths_to_use = defaultdict(dict)
         for field_name, instance_field_lengths in instance_padding_lengths.items():
-            for padding_key in instance_field_lengths:
+            for padding_key in instance_field_lengths.keys():
                 if padding_lengths[field_name].get(padding_key) is not None:
-                    lengths_to_use[field_name][padding_key] = padding_lengths[padding_key]
+                    lengths_to_use[field_name][padding_key] = padding_lengths[field_name][padding_key]
                 else:
                     lengths_to_use[field_name][padding_key] = instance_field_lengths[padding_key]
 
@@ -126,7 +133,7 @@ class Dataset:
         if verbose:
             logger.info("Now actually padding instances to length: %s", str(lengths_to_use))
             for instance in tqdm.tqdm(self.instances):
-                for field, arrays in instance.pad(lengths_to_use):
+                for field, arrays in instance.pad(lengths_to_use).items():
                     field_arrays[field].append(arrays)
         else:
             for instance in self.instances:
@@ -136,7 +143,7 @@ class Dataset:
         # Finally, we combine the arrays that we got for each instance into one big array (or set
         # of arrays) per field.
         for field_name, field_array_list in field_arrays.items():
-            if isinstance(field_array_list[0], [list, tuple]):
+            if isinstance(field_array_list[0], (list, tuple)):
                 field_arrays[field_name] = [numpy.asarray(x) for x in zip(*field_array_list)]
             else:
                 field_arrays[field_name] = numpy.asarray(field_array_list)

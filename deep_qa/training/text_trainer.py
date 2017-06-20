@@ -216,7 +216,7 @@ class TextTrainer(Trainer):
 
     @overrides
     def set_model_state_from_indexed_dataset(self, dataset: IndexedDataset):
-        self._set_padding_lengths(dataset.padding_lengths())
+        self._set_padding_lengths(dataset.get_padding_lengths())
 
     def _dataset_indexing_kwargs(self) -> Dict[str, Any]:
         return {'data_indexer': self.data_indexer}
