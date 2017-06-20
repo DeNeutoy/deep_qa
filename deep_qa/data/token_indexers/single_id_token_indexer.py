@@ -50,7 +50,7 @@ class SingleIdTokenIndexer(TokenIndexer):
 
     @overrides
     def pad_token_sequence(self,
-                           tokens: List[TokenType],
+                           tokens: List[int],
                            desired_num_tokens: int,
                            padding_lengths: Dict[str, int]) -> List[TokenType]:
         return pad_sequence_to_length(tokens, desired_num_tokens)

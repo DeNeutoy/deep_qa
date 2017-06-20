@@ -57,7 +57,7 @@ class TokenCharactersIndexer(TokenIndexer):
 
     @overrides
     def pad_token_sequence(self,
-                           tokens: List[TokenType],
+                           tokens: List[List[int]],
                            desired_num_tokens: int,
                            padding_lengths: Dict[str, int]) -> List[TokenType]:
         padded_tokens = pad_sequence_to_length(tokens, desired_num_tokens, default_value=lambda: [])
