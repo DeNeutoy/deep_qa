@@ -17,7 +17,7 @@ class ListField(SequenceField):
     def __init__(self, field_list: List[Field]):
         field_class_set = set([field.__class__ for field in field_list])
         assert len(field_class_set) == 1, "ListFields must contain a single field type, found " +\
-                str(field_class_set)
+                                          str(field_class_set)
         self._field_list = field_list
 
     @overrides

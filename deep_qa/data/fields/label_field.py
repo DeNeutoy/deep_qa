@@ -1,10 +1,13 @@
 from typing import Dict, List, Union
+import logging
 
 from overrides import overrides
 import numpy
 
 from .field import Field
 from ..vocabulary import Vocabulary
+
+logger = logging.getLogger(__name__)
 
 class LabelField(Field):
     """
@@ -26,17 +29,21 @@ class LabelField(Field):
     """
     def __init__(self,
                  label: Union[str, int],
-                 label_namespace: str='labels',
+                 label_namespace: str='*labels',
                  num_labels: int=None):
         self._label = label
         self._label_namespace = label_namespace
         if num_labels is None:
             self._label_id = None
             self._num_labels = None
+            if not self._label_namespace.startswith("*"):
+                logger.warning("The namespace of your tag ({}) does not begin with *,"
+                               " meaning the vocabulary namespace will contain UNK "
+                               "and PAD tokens by default.".format(self._label_namespace))
         else:
             assert isinstance(label, int), "Labels must be ints if you want to skip indexing"
             self._label_id = label
-            self.num_labels = num_labels
+            self._num_labels = num_labels
 
     @overrides
     def count_vocab_items(self, counter: Dict[str, Dict[str, int]]):
