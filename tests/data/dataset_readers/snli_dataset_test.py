@@ -1,7 +1,5 @@
 # pylint: disable=no-self-use,invalid-name
-from deep_qa.data.datasets import SnliDataset
-from deep_qa.data.instances.entailment.snli_instance import SnliInstance
-
+from deep_qa.data.dataset_readers import SnliReader
 from deep_qa.testing.test_case import DeepQaTestCase
 
 
@@ -12,31 +10,36 @@ class TestSnliDataset(DeepQaTestCase):
         self.write_original_snli_data()
 
     def test_read_from_file(self):
-        dataset = SnliDataset.read_from_file(self.TRAIN_FILE, SnliInstance)
 
-        instance1 = SnliInstance("A person on a horse jumps over a broken down airplane.",
-                                 "A person is training his horse for a competition.",
-                                 "neutral")
-        instance2 = SnliInstance("A person on a horse jumps over a broken down airplane.",
-                                 "A person is at a diner, ordering an omelette.",
-                                 "contradicts")
-        instance3 = SnliInstance("A person on a horse jumps over a broken down airplane.",
-                                 "A person is outdoors, on a horse.",
-                                 "entails")
+        reader = SnliReader(self.TRAIN_FILE)
+        dataset = reader.read()
+
+        instance1 = {"premise": ["a", "person", "on", "a", "horse",
+                                 "jumps", "over", "a", "broken", "down", "airplane", "."],
+                     "hypothesis": ["a", "person", "is", "training",
+                                    "his", "horse", "for", "a", "competition", "."],
+                     "label": "neutral"}
+
+        instance2 = {"premise": ["a", "person", "on", "a", "horse",
+                                 "jumps", "over", "a", "broken", "down", "airplane", "."],
+                     "hypothesis": ["a", "person", "is", "at", "a", "diner",
+                                    ",", "ordering", "an", "omelette", "."],
+                     "label": "contradiction"}
+        instance3 = {"premise": ["a", "person", "on", "a", "horse",
+                                 "jumps", "over", "a", "broken", "down", "airplane", "."],
+                     "hypothesis": ["a", "person", "is", "outdoors", ",", "on", "a", "horse", "."],
+                     "label": "entailment"}
 
         assert len(dataset.instances) == 3
-        instance = dataset.instances[0]
-        assert instance.index == instance1.index
-        assert instance.first_sentence == instance1.first_sentence
-        assert instance.second_sentence == instance1.second_sentence
-        assert instance.label == instance1.label
-        instance = dataset.instances[1]
-        assert instance.index == instance2.index
-        assert instance.first_sentence == instance2.first_sentence
-        assert instance.second_sentence == instance2.second_sentence
-        assert instance.label == instance2.label
-        instance = dataset.instances[2]
-        assert instance.index == instance3.index
-        assert instance.first_sentence == instance3.first_sentence
-        assert instance.second_sentence == instance3.second_sentence
-        assert instance.label == instance3.label
+        fields = dataset.instances[0].fields()
+        assert fields["premise"].tokens() == instance1["premise"]
+        assert fields["hypothesis"].tokens() == instance1["hypothesis"]
+        assert fields["label"].label() == instance1["label"]
+        fields = dataset.instances[1].fields()
+        assert fields["premise"].tokens() == instance2["premise"]
+        assert fields["hypothesis"].tokens() == instance2["hypothesis"]
+        assert fields["label"].label() == instance2["label"]
+        fields = dataset.instances[2].fields()
+        assert fields["premise"].tokens() == instance3["premise"]
+        assert fields["hypothesis"].tokens() == instance3["hypothesis"]
+        assert fields["label"].label() == instance3["label"]

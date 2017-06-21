@@ -1,4 +1,3 @@
-from . import dataset_readers
 from .. import Dataset
 from ...common import Params
 
@@ -17,5 +16,6 @@ class DatasetReader:
 
     @staticmethod
     def from_params(params: Params):
+        from . import dataset_readers
         choice = params.pop_choice('type', list(dataset_readers.keys()))
         return dataset_readers[choice].from_params(params)

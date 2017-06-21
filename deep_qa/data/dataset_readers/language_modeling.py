@@ -10,6 +10,7 @@ from ..fields import TextField
 from ..token_indexers import TokenIndexer, SingleIdTokenIndexer
 from ..tokenizers import Tokenizer, WordTokenizer
 
+
 class LanguageModelingReader(DatasetReader):
     """
     Reads a text file and converts it into a ``Dataset`` suitable for training a language model.
