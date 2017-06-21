@@ -1,6 +1,4 @@
 # pylint: disable=no-self-use,invalid-name
-from collections import defaultdict
-
 import pytest
 import numpy
 

@@ -74,6 +74,8 @@ class TokenIndexer:
         """
         raise NotImplementedError
 
-    @classmethod
-    def from_params(cls, params: Params):
-        raise NotImplementedError
+    @staticmethod
+    def from_params(params: Params):
+        from . import token_indexers
+        choice = params.pop_choice('type', list(token_indexers.keys()), default_to_first_choice=True)
+        return token_indexers[choice].from_params(params)
