@@ -53,6 +53,8 @@ class TextField(SequenceField):
 
             # This is a list of dicts, one for each token in the field.
             token_lengths = [indexer.get_padding_lengths(token) for token in array]
+            # TODO(Mark): This breaks if the token list is empty, but we need to be able to have empty fields.
+            # Just raise here?
             # Iterate over the keys in the first element of the list.
             # This is fine as for a given indexer, all tokens will return the same keys,
             # so we can just use the first one.

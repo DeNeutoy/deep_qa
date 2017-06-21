@@ -5,8 +5,7 @@ from copy import deepcopy
 
 from ..common.params import Params
 from ..common.util import group_by_count, add_noise_to_dict_values
-from . import IndexedDataset
-from .instances import IndexedInstance
+from . import Dataset, Instance
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -104,7 +103,7 @@ class DataGenerator:
         #: this data.
         self.last_num_batches = None
 
-    def create_generator(self, dataset: IndexedDataset, batch_size: int=None):
+    def create_generator(self, dataset: Dataset, batch_size: int=None):
         """
         Main external API call: converts an ``IndexedDataset`` into a data generator suitable for
         use with Keras' ``fit_generator`` and related methods.
@@ -122,12 +121,12 @@ class DataGenerator:
                 else:
                     groups = grouped_instances
                 for group in groups:
-                    batch = IndexedDataset(group)
-                    batch.pad_instances(self.text_trainer.get_padding_lengths(), verbose=False)
-                    yield batch.as_training_data()
+                    batch = Dataset(group)
+
+                    yield batch.as_arrays(self.text_trainer.get_padding_lengths(), verbose=False)
         return generator()
 
-    def __create_batches(self, dataset: IndexedDataset, batch_size: int) -> List[List[IndexedInstance]]:
+    def __create_batches(self, dataset: Dataset, batch_size: int) -> List[List[Instance]]:
         instances = dataset.instances
         if self.dynamic_padding:
             instances = self.sort_dataset_by_padding(dataset,
@@ -150,7 +149,7 @@ class DataGenerator:
             random.shuffle(grouped_instances)
         return grouped_instances
 
-    def __adaptive_grouping(self, instances: List[IndexedInstance]):
+    def __adaptive_grouping(self, instances: List[Instance]):
         batches = []
         current_batch = []
         current_lengths = {}
@@ -165,21 +164,21 @@ class DataGenerator:
                         or len(current_batch) > self.maximum_batch_size):
                 current_batch.pop()
                 if logger.getEffectiveLevel() <= logging.DEBUG:
-                    padding_lengths = IndexedDataset(current_batch).padding_lengths()
+                    padding_lengths = Dataset(current_batch).get_padding_lengths()
                     logger.debug("Batch size: %d; padding: %s", len(current_batch), padding_lengths)
                 batches.append(current_batch)
                 current_batch = [instance]
                 current_lengths = instance_lengths
         if logger.getEffectiveLevel() <= logging.DEBUG:
-            padding_lengths = IndexedDataset(current_batch).padding_lengths()
+            padding_lengths = Dataset(current_batch).get_padding_lengths()
             logger.debug("Batch size: %d; padding: %s", len(current_batch), padding_lengths)
         batches.append(current_batch)
         return batches
 
     @staticmethod
-    def sort_dataset_by_padding(dataset: IndexedDataset,
+    def sort_dataset_by_padding(dataset: Dataset,
                                 sorting_keys: List[Tuple[str, str]],
-                                padding_noise: float=0.0) -> List[IndexedInstance]:
+                                padding_noise: float=0.0) -> List[Instance]:
         """
         Sorts the ``Instances`` in this ``Dataset`` by their padding lengths, using the keys in
         ``sorting_keys`` (in the order in which they are provided).  ``sorting_keys`` is a list of

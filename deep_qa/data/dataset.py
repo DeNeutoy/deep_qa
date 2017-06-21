@@ -137,7 +137,7 @@ class Dataset:
                     field_arrays[field].append(arrays)
         else:
             for instance in self.instances:
-                for field, arrays in instance.pad(lengths_to_use):
+                for field, arrays in instance.pad(lengths_to_use).items():
                     field_arrays[field].append(arrays)
 
         # Finally, we combine the arrays that we got for each instance into one big array (or set

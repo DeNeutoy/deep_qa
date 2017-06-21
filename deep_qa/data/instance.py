@@ -39,7 +39,7 @@ class Instance:
 
     def get_padding_lengths(self) -> Dict[str, Dict[str, int]]:
         """
-        Returns a dictionary of padding lengths, keyed field name.  Each ``Field`` returns a
+        Returns a dictionary of padding lengths, keyed by field name.  Each ``Field`` returns a
         mapping from padding keys to actual lengths, and we just key that dictionary by field name.
         """
         lengths = {}
