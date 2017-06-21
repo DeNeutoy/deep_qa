@@ -29,10 +29,8 @@ class TestDataset(DeepQaTestCase):
             _ = Dataset([instance1, instance2])
 
     def test_padding_lengths_uses_max_instance_lengths(self):
-
         dataset = self.get_dataset()
         dataset.index_instances(self.vocab)
-
         padding_lengths = dataset.get_padding_lengths()
         assert padding_lengths == {"text1": {"num_tokens": 5}, "text2": {"num_tokens": 6}}
 
@@ -45,8 +43,7 @@ class TestDataset(DeepQaTestCase):
         text1 = arrays["text1"][0]
         text2 = arrays["text2"][0]
         numpy.testing.assert_array_almost_equal(text1, numpy.array([[2, 3, 4, 5, 6],
-                                                                     [1, 3, 4, 5, 6]]))
-
+                                                                    [1, 3, 4, 5, 6]]))
         numpy.testing.assert_array_almost_equal(text2, numpy.array([[2, 3, 4, 1, 5, 6],
                                                                     [2, 3, 1, 0, 0, 0]]))
 

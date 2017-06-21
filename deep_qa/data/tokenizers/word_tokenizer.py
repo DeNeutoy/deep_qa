@@ -30,9 +30,9 @@ class WordTokenizer(Tokenizer):
         The :class:`WordStemmer` to use.  Default is no stemming.
     """
     def __init__(self,
-                 word_splitter: WordSplitter=SimpleWordSplitter,
-                 word_filter: WordFilter=PassThroughWordFilter,
-                 word_stemmer: WordStemmer=PassThroughWordStemmer):
+                 word_splitter: WordSplitter=SimpleWordSplitter(),
+                 word_filter: WordFilter=PassThroughWordFilter(),
+                 word_stemmer: WordStemmer=PassThroughWordStemmer()):
         self.word_splitter = word_splitter
         self.word_filter = word_filter
         self.word_stemmer = word_stemmer
@@ -66,8 +66,8 @@ class WordTokenizer(Tokenizer):
             The name of the ``WordStemmer`` to use (see the options at the bottom of
             ``word_stemmer.py``).
         """
-        word_splitter = WordSplitter.from_params(params.pop('word_splitter'))
-        word_filter = WordFilter.from_params(params.pop('word_filter'))
-        word_stemmer = WordStemmer.from_params(params.pop('word_stemmer'))
+        word_splitter = WordSplitter.from_params(params.pop('word_splitter', {}))
+        word_filter = WordFilter.from_params(params.pop('word_filter', {}))
+        word_stemmer = WordStemmer.from_params(params.pop('word_stemmer', {}))
         params.assert_empty(cls.__name__)
         return cls(word_splitter=word_splitter, word_filter=word_filter, word_stemmer=word_stemmer)
