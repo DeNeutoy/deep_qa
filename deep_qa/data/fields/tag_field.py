@@ -65,3 +65,6 @@ class TagField(Field):
         tag_field = TagField([], None)
         tag_field._indexed_tags = []
         return tag_field
+
+    def tags(self):
+        return self._tags

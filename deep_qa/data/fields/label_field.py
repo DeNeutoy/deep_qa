@@ -9,6 +9,7 @@ from ..vocabulary import Vocabulary
 
 logger = logging.getLogger(__name__)
 
+
 class LabelField(Field):
     """
     A ``LabelField`` is a categorical label of some kind, where the labels are either strings of
@@ -69,3 +70,6 @@ class LabelField(Field):
     @overrides
     def empty_field(self):
         return LabelField(0, self._label_namespace)
+
+    def label(self):
+        return self._label

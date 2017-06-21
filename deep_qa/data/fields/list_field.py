@@ -57,3 +57,6 @@ class ListField(SequenceField):
     def empty_field(self):
         raise RuntimeError("Nested ListFields are not implemented, and if you want this "
                            "you should probably try to simplify your data type, anyway")
+
+    def fields(self):
+        return self._field_list

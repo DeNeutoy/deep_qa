@@ -32,3 +32,8 @@ class IndexField(Field):
     @overrides
     def empty_field(self):
         return IndexField(0, None)
+
+    def sequence_index(self):
+        # This method can't be called index,
+        # as that name is already reserved.
+        return self._index
