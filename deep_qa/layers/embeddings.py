@@ -4,7 +4,7 @@ import logging
 
 import numpy
 from keras.layers import Embedding
-from .data_indexer import DataIndexer
+from ..data.vocabulary import Vocabulary
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -19,7 +19,8 @@ class PretrainedEmbeddings:
 
     @staticmethod
     def get_embedding_layer(embeddings_filename: str,
-                            data_indexer: DataIndexer,
+                            vocab: Vocabulary,
+                            namespace: str="tokens",
                             trainable=False,
                             log_misses=False,
                             name="pretrained_embedding"):
@@ -35,8 +36,8 @@ class PretrainedEmbeddings:
 
         The embeddings file is assumed to be gzipped, formatted as [word] [dim 1] [dim 2] ...
         """
-        words_to_keep = set(data_indexer.words_in_index())
-        vocab_size = data_indexer.get_vocab_size()
+        words_to_keep = set(vocab.tokens_in_namespace(namespace))
+        vocab_size = vocab.get_vocab_size(namespace)
         embeddings = {}
         embedding_dim = None
 
@@ -66,7 +67,6 @@ class PretrainedEmbeddings:
                     vector = numpy.asarray(fields[1:], dtype='float32')
                     embeddings[word] = vector
 
-
         # Now we initialize the weight matrix for an embedding layer, starting with random vectors,
         # then filling in the word vectors we just read.
         logger.info("Initializing pre-trained embedding layer")
@@ -75,11 +75,11 @@ class PretrainedEmbeddings:
             embedding_misses_file = codecs.open(embedding_misses_filename, 'w', 'utf-8')
         embedding_matrix = PretrainedEmbeddings.initialize_random_matrix((vocab_size, embedding_dim))
 
-        # The 2 here is because we know too much about the DataIndexer.  Index 0 is the padding
-        # index, and the vector for that dimension is going to be 0.  Index 1 is the OOV token, and
-        # we can't really set a vector for the OOV token.
-        for i in range(2, vocab_size):
-            word = data_indexer.get_word_from_index(i)
+        # Depending on whether the namespace has PAD and UNK tokens, we start at different indices,
+        # because you shouldn't have pretrained embeddings for PAD or UNK.
+        start_index = 0 if namespace.startswith("*") else 2
+        for i in range(start_index, vocab_size):
+            word = vocab.get_token_from_index(i, namespace)
 
             # If we don't have a pre-trained vector for this word, we'll just leave this row alone,
             # so the word has a random initialization.
