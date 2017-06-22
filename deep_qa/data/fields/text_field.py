@@ -65,7 +65,7 @@ class TextField(SequenceField):
         # Get all the namespaces which have been used for padding.
         all_namespaces = set().union(*[d.keys() for d in lengths])
         for namespace in all_namespaces:
-            padding_lengths[namespace] = max(x[key] if key in x else 0 for x in lengths)
+            padding_lengths[namespace] = max(x[namespace] if namespace in x else 0 for x in lengths)
         return padding_lengths
 
     @overrides

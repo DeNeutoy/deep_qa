@@ -90,12 +90,14 @@ class TestTextField(DeepQaTestCase):
 
         field = TextField(["A", "sentence"], [token_indexers["single id"](token_namespace="words")])
         field.index(vocab)
+        # pylint: disable=protected-access
         assert field._indexed_tokens == [[capital_a_index, sentence_index]]
 
         field1 = TextField(["A", "sentence"], [token_indexers["characters"](character_namespace="characters")])
         field1.index(vocab)
-        assert field1._indexed_tokens == [[[capital_a_char_index], [s_index, e_index, n_index, t_index,
-                                           e_index, n_index, c_index, e_index]]]
+        assert field1._indexed_tokens == [[[capital_a_char_index],
+                                           [s_index, e_index, n_index, t_index,
+                                            e_index, n_index, c_index, e_index]]]
         field2 = TextField(["A", "sentence"],
                            token_indexers=[token_indexers["single id"](token_namespace="words"),
                                            token_indexers["characters"](character_namespace="characters")])
@@ -103,8 +105,8 @@ class TestTextField(DeepQaTestCase):
         assert field2._indexed_tokens == [[capital_a_index, sentence_index],
                                           [[capital_a_char_index],
                                            [s_index, e_index, n_index, t_index,
-                                            e_index, n_index, c_index, e_index]]
-                                          ]
+                                            e_index, n_index, c_index, e_index]]]
+        # pylint: enable=protected-access
 
     def test_get_padding_lengths_raises_if_no_indexed_tokens(self):
 

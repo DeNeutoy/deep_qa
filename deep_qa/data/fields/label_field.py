@@ -7,7 +7,7 @@ import numpy
 from .field import Field
 from ..vocabulary import Vocabulary
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class LabelField(Field):
@@ -38,9 +38,9 @@ class LabelField(Field):
             self._label_id = None
             self._num_labels = None
             if not self._label_namespace.startswith("*"):
-                logger.warning("The namespace of your tag ({}) does not begin with *,"
+                logger.warning("The namespace of your tag (%s) does not begin with *,"
                                " meaning the vocabulary namespace will contain UNK "
-                               "and PAD tokens by default.".format(self._label_namespace))
+                               "and PAD tokens by default.", self._label_namespace)
         else:
             assert isinstance(label, int), "Labels must be ints if you want to skip indexing"
             self._label_id = label

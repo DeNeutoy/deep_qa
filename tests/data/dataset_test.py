@@ -48,9 +48,12 @@ class TestDataset(DeepQaTestCase):
                                                                     [2, 3, 1, 0, 0, 0]]))
 
     def get_dataset(self):
-        field1 = TextField(["this", "is", "a", "sentence", "."], [token_indexers["single id"]("words")])
-        field2 = TextField(["this", "is", "a", "different", "sentence", "."], [token_indexers["single id"]("words")])
-        field3 = TextField(["here", "is", "a", "sentence", "."], [token_indexers["single id"]("words")])
+        field1 = TextField(["this", "is", "a", "sentence", "."],
+                           [token_indexers["single id"]("words")])
+        field2 = TextField(["this", "is", "a", "different", "sentence", "."],
+                           [token_indexers["single id"]("words")])
+        field3 = TextField(["here", "is", "a", "sentence", "."],
+                           [token_indexers["single id"]("words")])
         field4 = TextField(["this", "is", "short"], [token_indexers["single id"]("words")])
         instances = [Instance({"text1": field1, "text2": field2}),
                      Instance({"text1": field3, "text2": field4})]

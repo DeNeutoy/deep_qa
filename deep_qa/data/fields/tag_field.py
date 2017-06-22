@@ -27,8 +27,8 @@ class TagField(Field):
         self._num_tags = None
 
         if not self._tag_namespace.startswith("*"):
-            logger.warning("The namespace of your tag ({}) does not begin with *, meaning the vocabulary "
-                           "namespace will contain UNK and PAD tokens by default.".format(self._tag_namespace))
+            logger.warning("The namespace of your tag (%s) does not begin with *, meaning the vocabulary "
+                           "namespace will contain UNK and PAD tokens by default.", self._tag_namespace)
 
         if len(tags) != sequence_field.sequence_length():
             raise ConfigurationError("Tag length and sequence length "

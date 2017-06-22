@@ -13,12 +13,6 @@ from deep_qa.testing.test_case import DeepQaTestCase
 
 class TestTagField(DeepQaTestCase):
 
-    def test_field_counts_vocab_items_correctly(self):
-        field = TextField(["This", "is", "a", "text", "field", "."],
-                          token_indexers=[token_indexers["single id"]("words")])
-        namespace_token_counts = defaultdict(lambda: defaultdict(int))
-        field.count_vocab_items(namespace_token_counts)
-
     def test_tag_length_mismatch_raises(self):
         with pytest.raises(ConfigurationError):
             text = TextField(["here", "are", "some", "words", "."], [])
@@ -49,8 +43,10 @@ class TestTagField(DeepQaTestCase):
         tag_field = TagField(tags, text, tag_namespace="*tags")
         tag_field.index(vocab)
 
+        # pylint: disable=protected-access
         assert tag_field._indexed_tags == [b_index, i_index, o_index, o_index, o_index]
         assert tag_field._num_tags == 3
+        # pylint: enable=protected-access
 
     def test_pad_produces_one_hot_targets(self):
         vocab = Vocabulary()
