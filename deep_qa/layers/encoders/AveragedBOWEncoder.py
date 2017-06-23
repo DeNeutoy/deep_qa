@@ -11,6 +11,7 @@ class AveragedBOWEncoder(Layer):
     can be decomposed into multiple words. Then, embedding for each word is averaged.
     """
     def __init__(self, averaging_over_dim=-2, num_dimensions=3, **kwargs):
+
         self.input_spec = [InputSpec(ndim=num_dimensions)]
         if averaging_over_dim < 0:
             self.averaging_over_dim = num_dimensions + averaging_over_dim
@@ -31,9 +32,19 @@ class AveragedBOWEncoder(Layer):
 
     @overrides
     def compute_mask(self, inputs, mask=None):
-        # We need to override this method because Layer passes the input mask unchanged since this layer
-        # supports masking. We don't want that. After the input is averaged, we can stop propagating
-        # the mask.
+
+        if mask is None:
+            return None
+
+        elif K.ndim(mask) <= self.averaging_over_dim:
+            # If we were averaging a dimension that is not covered,
+            # the mask is unchanged.
+            return mask
+        else:
+            # If we are averaging over a dimension which is covered by the mask,
+            # then the new mask should contain a 0 only in the case that the
+            # entire dimension was masked previously for a given input.
+            return K.any(mask, self.averaging_over_dim)
         return None
 
     @overrides
@@ -41,6 +52,10 @@ class AveragedBOWEncoder(Layer):
         # pylint: disable=redefined-variable-type
         if mask is None:
             return K.mean(inputs, axis=self.averaging_over_dim)  # axis = 1 was default
+
+        elif self.averaging_over_dim >= K.ndim(mask):
+            return K.mean(inputs, axis=self.averaging_over_dim)
+
         else:
             # Compute weights such that masked elements have zero weights and the remaining
             # weight is distributed equally among the unmasked elements.
@@ -56,15 +71,8 @@ class AveragedBOWEncoder(Layer):
 
             # Expanding dims of the denominator to make it the same shape as the numerator,
             # epsilon added to avoid division by zero.
-            # (samples, num_words)
-            updated_dim_to_avg = self.averaging_over_dim
-
-            if K.ndim(float_mask) < K.ndim(inputs):
-                updated_dim_to_avg -= 1
-            weighted_mask = float_mask / (K.sum(float_mask, axis=updated_dim_to_avg, keepdims=True) + K.epsilon())
+            weighted_mask = float_mask / (K.sum(float_mask, axis=self.averaging_over_dim, keepdims=True) + K.epsilon())
             if K.ndim(weighted_mask) < K.ndim(inputs):
                 weighted_mask = K.expand_dims(weighted_mask)
-            print("Weighted mask = ", weighted_mask)
             averaged = K.sum(inputs * weighted_mask, axis=self.averaging_over_dim)  # (batch_size, num_slots)
-            print("Averaged = ", averaged)
             return averaged
